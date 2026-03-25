@@ -11,13 +11,13 @@ const projectRoot = path.join(__dirname, '..', '..');
 dotenv.config({ path: path.join(projectRoot, '.env') });
 
 import pool, { initDatabase } from './config/database.js';
-import authRoutes from './routes/auth';
-import loopsRoutes from './routes/loops';
-import chatRoutes from './routes/chats';
-import subscriptionRoutes from './routes/subscriptions';
-import likeRoutes from './routes/likes';
-import topUsersRoutes from './routes/topUsers';
-import searchRoutes from './routes/search';
+import authRoutes from './routes/auth.js';
+import loopsRoutes from './routes/loops.js';
+import chatRoutes from './routes/chats.js';
+import subscriptionRoutes from './routes/subscriptions.js';
+import likeRoutes from './routes/likes.js';
+import topUsersRoutes from './routes/topUsers.js';
+import searchRoutes from './routes/search.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;

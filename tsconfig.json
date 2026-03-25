@@ -15,6 +15,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmitOnError": false,
+    "allowImportingTsExtensions": false,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
