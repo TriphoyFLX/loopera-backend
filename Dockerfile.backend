@@ -16,17 +16,11 @@ COPY package*.json ./
 # Install all dependencies (including devDependencies for build)
 RUN npm ci && npm cache clean --force
 
-# Build stage
-FROM base AS builder
-
 # Copy source code
 COPY . .
 
 # Build TypeScript
 RUN npm run build
-
-# Check if dist was created
-RUN ls -la /app/dist || echo "Dist folder not found"
 
 # Production stage
 FROM node:20-alpine AS production
@@ -61,5 +55,5 @@ EXPOSE 5001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:5001/api/health || exit 1
 
-# Start application
+# Start the application
 CMD ["node", "dist/index.js"]
