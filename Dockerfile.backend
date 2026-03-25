@@ -25,6 +25,9 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+# Check if dist was created
+RUN ls -la /app/dist || echo "Dist folder not found"
+
 # Production stage
 FROM node:20-alpine AS production
 
