@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..', '..');
 dotenv.config({ path: path.join(projectRoot, '.env') });
 
-import pool, { initDatabase } from './config/database';
+import pool, { initDatabase } from './config/database.js';
 import authRoutes from './routes/auth';
 import loopsRoutes from './routes/loops';
 import chatRoutes from './routes/chats';
