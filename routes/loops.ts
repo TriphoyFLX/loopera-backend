@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { uploadLoop, getUserLoops, getAllLoops, deleteLoop } from '../controllers/loopController.ts';
-import { authenticate } from '../middleware/auth.ts';
+import { uploadLoop, getUserLoops, getAllLoops, deleteLoop } from '../controllers/loopController';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
