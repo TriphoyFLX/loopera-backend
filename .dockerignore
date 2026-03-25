@@ -9,11 +9,10 @@ dist
 build
 
 # Environment files
-.env
+.env*
 .env.local
 .env.development.local
 .env.test.local
-.env.production
 
 # Logs
 logs
@@ -65,9 +64,9 @@ Thumbs.db
 .git
 .gitignore
 
-# Docker files (except the ones we need)
-Dockerfile*
-docker-compose*
+# Docker files (except ones we need)
+docker-compose.yml
+docker-compose.backend-only.yml
 .dockerignore
 
 # Documentation
