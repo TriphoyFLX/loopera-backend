@@ -21,7 +21,9 @@
     }
   },
   "include": [
-    "**/*.ts"
+    "**/*.ts",
+    "src/**/*.ts",
+    "src/config/**/*"
   ],
   "exclude": [
     "node_modules",
