@@ -43,43 +43,35 @@ export const register = async (req: Request, res: Response) => {
       });
     }
 
-    // Генерируем код верификации
-    const verificationCode = generateVerificationCode();
-    
-    // Сохраняем код в базе данных
-    await pool.query(
-      `INSERT INTO verification_codes (email, code, expires_at) 
-       VALUES ($1, $2, NOW() + INTERVAL '10 minutes')`,
-      [email, verificationCode]
+    // Хешируем пароль
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Создаем пользователя сразу
+    const result = await pool.query(
+      'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email, created_at',
+      [username, email, hashedPassword]
     );
 
-    // Отправляем код на email
-    try {
-      await sendVerificationCode(email, verificationCode);
-    } catch (emailError) {
-      console.error('Email sending error:', emailError);
-      // В development режиме всегда возвращаем код для тестирования
-      return res.status(200).json({ 
-        message: 'Код верификации отправлен (development mode)',
-        requiresVerification: true,
-        email: email,
-        verificationCode: verificationCode // Только для разработки!
-      });
-    }
+    const user = result.rows[0];
 
-    // Временно сохраняем данные пользователя для завершения регистрации
-    // В реальном приложении лучше использовать Redis или временные токены
-    const tempUserData = {
-      username,
-      email,
-      password: await bcrypt.hash(password, 10)
-    };
+    // Создаем токен
+    const token = jwt.sign(
+      { userId: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
-    res.status(200).json({ 
-      message: 'Код верификации отправлен на ваш email',
-      requiresVerification: true,
-      email: email,
-      tempData: tempUserData // В реальном приложении это нужно зашифровать!
+    console.log('User registered successfully:', { id: user.id, username: user.username });
+
+    res.status(201).json({
+      message: 'Регистрация успешна',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        created_at: user.created_at
+      }
     });
   } catch (error) {
     console.error('Registration error:', error);
