@@ -66,7 +66,18 @@ export const initDatabase = async () => {
       )
     `);
 
-    // Таблицы для чатов
+    // Таблица для кодов верификации email
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS verification_codes (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Таблица для чатов
     await pool.query(`
       CREATE TABLE IF NOT EXISTS chats (
         id SERIAL PRIMARY KEY,
