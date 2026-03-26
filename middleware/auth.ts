@@ -1,6 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import pool from '../config/database';
+import pool from '../config/database.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 

@@ -2,7 +2,7 @@ import express from 'express';
 import {
   getTopUsers,
   getUserStats
-} from '../controllers/topUsersController';
+} from '../controllers/topUsersController.js';
 
 const router = express.Router();
 

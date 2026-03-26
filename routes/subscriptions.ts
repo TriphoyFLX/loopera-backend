@@ -1,11 +1,11 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate } from '../middleware/auth.js';
 import {
   getUserSubscriptions,
   addSubscription,
   removeSubscription,
   getSubscribedLoops
-} from '../controllers/subscriptionController';
+} from '../controllers/subscriptionController.js';
 
 const router = express.Router();
 

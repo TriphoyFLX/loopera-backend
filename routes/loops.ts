@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { uploadLoop, getUserLoops, getAllLoops, deleteLoop } from '../controllers/loopController';
-import { authenticate } from '../middleware/auth';
+import { uploadLoop, getUserLoops, getAllLoops, deleteLoop } from '../controllers/loopController.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 

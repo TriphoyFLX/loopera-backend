@@ -1,6 +1,6 @@
 import express from 'express';
-import { authenticate, type AuthRequest } from '../middleware/auth';
-import pool from '../config/database';
+import { authenticate, type AuthRequest } from '../middleware/auth.js';
+import pool from '../config/database.js';
 
 type Response = express.Response;
 
