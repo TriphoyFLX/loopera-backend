@@ -73,6 +73,7 @@ export const initDatabase = async () => {
         email VARCHAR(255) NOT NULL,
         code VARCHAR(10) NOT NULL,
         expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
