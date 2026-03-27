@@ -60,8 +60,16 @@ app.use('/api/search', searchRoutes);
 // Раздача статических файлов (загруженные лупы)
 app.use('/uploads', express.static('uploads'));
 
+// Раздача статических файлов фронтенда
+app.use(express.static(path.join(projectRoot, 'frontend-repo', 'dist')));
+
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running' });
+});
+
+// Fallback route для SPA - отдаем index.html для всех остальных запросов
+app.get('*', (req, res) => {
+  res.sendFile(path.join(projectRoot, 'frontend-repo', 'dist', 'index.html'));
 });
 
 const startServer = async () => {
