@@ -18,6 +18,7 @@ import subscriptionRoutes from './routes/subscriptions.js';
 import likeRoutes from './routes/likes.js';
 import topUsersRoutes from './routes/topUsers.js';
 import searchRoutes from './routes/search.js';
+import adminRoutes from './routes/admin.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,6 +57,7 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/loops', likeRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Раздача статических файлов (загруженные лупы)
 app.use('/uploads', express.static('uploads'));
