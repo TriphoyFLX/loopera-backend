@@ -70,7 +70,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Fallback route для SPA - отдаем index.html для всех остальных запросов
-app.get('*', (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(projectRoot, 'frontend-repo', 'dist', 'index.html'));
 });
 
