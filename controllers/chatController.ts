@@ -1,7 +1,7 @@
 import express from 'express';
-import { authenticate, type AuthRequest } from '../middleware/auth.js';
-import pool from '../config/database.js';
-import type { IUser } from '../models/User.js';
+import { simpleAuth, type AuthRequest } from '../middleware/simpleAuth.ts';
+import pool from '../config/database.ts';
+import type { IUser } from '../models/User.ts';
 
 type Request = express.Request;
 type Response = express.Response;

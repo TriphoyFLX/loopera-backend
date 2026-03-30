@@ -7,18 +7,18 @@ import { fileURLToPath } from 'url';
 // Загружаем переменные окружения ПЕРЕД импортами, которые их используют
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const projectRoot = path.join(__dirname, '..', '..');
+const projectRoot = path.join(__dirname, '..');
 dotenv.config({ path: path.join(projectRoot, '.env') });
 
-import pool, { initDatabase } from './config/database.js';
-import authRoutes from './routes/auth.js';
-import loopsRoutes from './routes/loops.js';
-import chatRoutes from './routes/chats.js';
-import subscriptionRoutes from './routes/subscriptions.js';
-import likeRoutes from './routes/likes.js';
-import topUsersRoutes from './routes/topUsers.js';
-import searchRoutes from './routes/search.js';
-import adminRoutes from './routes/admin.js';
+import pool, { initDatabase } from './config/database.ts';
+import authRoutes from './routes/auth.ts';
+import loopsRoutes from './routes/loops.ts';
+import chatRoutes from './routes/chats.ts';
+import subscriptionRoutes from './routes/subscriptions.ts';
+import likeRoutes from './routes/likes.ts';
+import topUsersRoutes from './routes/topUsers.ts';
+import searchRoutes from './routes/search.ts';
+import adminRoutes from './routes/admin.ts';
 
 const app = express();
 const PORT = process.env.PORT || 5000;

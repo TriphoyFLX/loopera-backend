@@ -1,5 +1,5 @@
-import { Request, Response } from 'express';
-import pool from '../config/database.js';
+import type { Request, Response } from 'express';
+import pool from '../config/database.ts';
 
 export const getAdminStats = async (req: Request, res: Response) => {
   try {
@@ -156,5 +156,65 @@ export const getAllLoops = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching loops:', error);
     res.status(500).json({ error: 'Failed to fetch loops' });
+  }
+};
+
+export const deleteLoop = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Проверяем существование лупа
+    const loopCheck = await pool.query('SELECT * FROM loops WHERE id = $1', [id]);
+    
+    if (loopCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loop not found' });
+    }
+
+    // Удаляем луп и связанные данные
+    await pool.query('DELETE FROM loop_likes WHERE loop_id = $1', [id]);
+    await pool.query('DELETE FROM loops WHERE id = $1', [id]);
+
+    res.json({ message: 'Loop deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting loop:', error);
+    res.status(500).json({ error: 'Failed to delete loop' });
+  }
+};
+
+export const banUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    // Добавляем колонку is_banned если ее нет
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT');
+    
+    // Баним пользователя
+    await pool.query(
+      'UPDATE users SET is_banned = TRUE, ban_reason = $1 WHERE id = $2',
+      [reason, id]
+    );
+
+    res.json({ message: 'User banned successfully' });
+  } catch (error) {
+    console.error('Error banning user:', error);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+};
+
+export const unbanUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    await pool.query(
+      'UPDATE users SET is_banned = FALSE, ban_reason = NULL WHERE id = $1',
+      [id]
+    );
+
+    res.json({ message: 'User unbanned successfully' });
+  } catch (error) {
+    console.error('Error unbanning user:', error);
+    res.status(500).json({ error: 'Failed to unban user' });
   }
 };

@@ -1,11 +1,18 @@
 import express from 'express';
-import { adminAuth } from '../middleware/adminAuth.js';
-import { getAdminStats, getAllUsers, getAllLoops } from '../controllers/adminController.js';
+import { simpleAdmin } from '../middleware/simpleAdmin.ts';
+import { 
+  getAdminStats, 
+  getAllUsers, 
+  getAllLoops, 
+  deleteLoop, 
+  banUser, 
+  unbanUser 
+} from '../controllers/adminController.ts';
 
 const router = express.Router();
 
-// Apply admin auth middleware to all routes
-router.use(adminAuth);
+// Apply simple admin middleware to all routes
+router.use(simpleAdmin);
 
 // Get admin dashboard statistics
 router.get('/stats', getAdminStats);
@@ -15,5 +22,14 @@ router.get('/users', getAllUsers);
 
 // Get all loops with pagination
 router.get('/loops', getAllLoops);
+
+// Delete a loop
+router.delete('/loops/:id', deleteLoop);
+
+// Ban a user
+router.post('/users/:id/ban', banUser);
+
+// Unban a user
+router.post('/users/:id/unban', unbanUser);
 
 export default router;

@@ -1,16 +1,16 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { simpleAuth } from '../middleware/simpleAuth.ts';
 import {
   getUserSubscriptions,
   addSubscription,
   removeSubscription,
   getSubscribedLoops
-} from '../controllers/subscriptionController.js';
+} from '../controllers/subscriptionController.ts';
 
 const router = express.Router();
 
 // Все маршруты требуют аутентификации
-router.use(authenticate);
+router.use(simpleAuth);
 
 // Получение подписок пользователя
 router.get('/', getUserSubscriptions);

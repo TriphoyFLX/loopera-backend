@@ -1,24 +1,15 @@
 import { Pool } from 'pg';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const projectRoot = path.join(__dirname, '..', '..'); // Два уровня вверх от backend/config
+const projectRoot = path.join(__dirname, '..'); // Один уровень вверх от backend/config
 
 // .env уже загружен в index.ts
 
-console.log('Database config:', {
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'loopera',
-  password: process.env.DB_PASSWORD || '',
-  port: parseInt(process.env.DB_PORT || '5432'),
-});
-
 const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
+  user: process.env.DB_USER || 'matveevdima',
   host: process.env.DB_HOST || 'localhost',
   database: process.env.DB_NAME || 'loopera',
   password: process.env.DB_PASSWORD || '',

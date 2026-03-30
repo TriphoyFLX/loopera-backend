@@ -2,8 +2,8 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import pool from '../config/database.js';
-import { generateVerificationCode, sendVerificationCode } from '../services/emailService.js';
+import pool from '../config/database.ts';
+import { generateVerificationCode, sendVerificationCode } from '../services/emailService.ts';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -15,7 +15,7 @@ import('dotenv').then(dotenv => {
   dotenv.config({ path: path.join(projectRoot, '.env') });
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjgsInVzZXJuYW1lIjoiVHJpcGhveSIsImVtYWlsIjoicm9vbW9wODZAZ21haWwuY29tIiwiaWF0IjoxNzc0ODc5NjUzLCJleHAiOjE3NzU0ODQ0NTN9.SUZ77D2bi7S9Wnw_07Id18A-WI5eveCoLV4ZLM893FU';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -181,7 +181,7 @@ export const login = async (req: Request, res: Response) => {
 
     // Создаем токен
     const token = jwt.sign(
-      { userId: user.id, username: user.username },
+      { userId: user.id, username: user.username, email: user.email },
       JWT_SECRET,
       { expiresIn: '7d' }
     );

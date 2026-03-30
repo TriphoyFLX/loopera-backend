@@ -1,15 +1,15 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { simpleAuth } from '../middleware/simpleAuth.ts';
 import {
   toggleLike,
   getLikeStatus,
   getLikedLoops
-} from '../controllers/likeController.js';
+} from '../controllers/likeController.ts';
 
 const router = express.Router();
 
 // Все маршруты требуют аутентификации
-router.use(authenticate);
+router.use(simpleAuth);
 
 // Лайкнуть/дизлайкнуть луп
 router.post('/loops/:loopId/like', toggleLike);
