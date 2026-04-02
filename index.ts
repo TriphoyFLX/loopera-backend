@@ -10,15 +10,15 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 dotenv.config({ path: path.join(projectRoot, '.env') });
 
-import pool, { initDatabase } from './config/database.ts';
-import authRoutes from './routes/auth.ts';
-import loopsRoutes from './routes/loops.ts';
-import chatRoutes from './routes/chats.ts';
-import subscriptionRoutes from './routes/subscriptions.ts';
-import likeRoutes from './routes/likes.ts';
-import topUsersRoutes from './routes/topUsers.ts';
-import searchRoutes from './routes/search.ts';
-import adminRoutes from './routes/admin.ts';
+import pool, { initDatabase } from './config/database';
+import authRoutes from './routes/auth';
+import loopsRoutes from './routes/loops';
+import chatRoutes from './routes/chats';
+import subscriptionRoutes from './routes/subscriptions';
+import likeRoutes from './routes/likes';
+import topUsersRoutes from './routes/topUsers';
+import searchRoutes from './routes/search';
+import adminRoutes from './routes/admin';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
