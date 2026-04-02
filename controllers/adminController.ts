@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import pool from '../config/database.ts';
+import pool from '../config/database';
 
 export const getAdminStats = async (req: Request, res: Response) => {
   try {

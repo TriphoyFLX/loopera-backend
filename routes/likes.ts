@@ -1,10 +1,10 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.ts';
+import { authenticate } from '../middleware/auth';
 import {
   toggleLike,
   getLikeStatus,
   getLikedLoops
-} from '../controllers/likeController.ts';
+} from '../controllers/likeController';
 
 const router = express.Router();
 

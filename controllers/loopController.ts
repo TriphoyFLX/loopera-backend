@@ -3,8 +3,8 @@ import type { Request, Response } from 'express';
 import multer from 'multer';
 import { join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
-import pool from '../config/database.ts';
-import type { AuthRequest } from '../middleware/auth.ts';
+import pool from '../config/database';
+import type { AuthRequest } from '../middleware/auth';
 
 // Настройка multer для загрузки файлов
 const storage = multer.diskStorage({

@@ -1,5 +1,5 @@
 import express from 'express';
-import { simpleAdmin } from '../middleware/simpleAdmin.ts';
+import { simpleAdmin } from '../middleware/simpleAdmin';
 import { 
   getAdminStats, 
   getAllUsers, 
@@ -7,7 +7,7 @@ import {
   deleteLoop, 
   banUser, 
   unbanUser 
-} from '../controllers/adminController.ts';
+} from '../controllers/adminController';
 
 const router = express.Router();
 

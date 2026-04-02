@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import pool from '../config/database.ts';
+import pool from '../config/database';
 
 declare global {
   namespace Express {

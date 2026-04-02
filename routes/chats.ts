@@ -1,12 +1,12 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.ts';
+import { authenticate } from '../middleware/auth';
 import {
   getUserChats,
   getChatMessages,
   createOrGetChat,
   sendMessage,
   getUserInfo
-} from '../controllers/chatController.ts';
+} from '../controllers/chatController';
 
 const router = express.Router();
 
