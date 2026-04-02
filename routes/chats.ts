@@ -1,5 +1,5 @@
 import express from 'express';
-import { simpleAuth } from '../middleware/simpleAuth.ts';
+import { authenticate } from '../middleware/auth.ts';
 import {
   getUserChats,
   getChatMessages,
@@ -11,7 +11,7 @@ import {
 const router = express.Router();
 
 // Все маршруты требуют аутентификации
-router.use(simpleAuth);
+router.use(authenticate);
 
 // Получение всех чатов пользователя
 router.get('/', getUserChats);

@@ -1,5 +1,5 @@
 import express from 'express';
-import { simpleAuth } from '../middleware/simpleAuth.ts';
+import { authenticate } from '../middleware/auth.ts';
 import {
   getUserSubscriptions,
   addSubscription,
@@ -10,7 +10,7 @@ import {
 const router = express.Router();
 
 // Все маршруты требуют аутентификации
-router.use(simpleAuth);
+router.use(authenticate);
 
 // Получение подписок пользователя
 router.get('/', getUserSubscriptions);
