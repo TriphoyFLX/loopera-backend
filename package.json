@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon --exec ts-node-esm index.ts",
     "build": "tsc && cp -r config dist/",
-    "start": "node dist/index.js",
+    "start": "tsx index.ts",
     "lint": "eslint ."
   },
   "dependencies": {

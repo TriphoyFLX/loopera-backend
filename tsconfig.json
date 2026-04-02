@@ -7,14 +7,14 @@
     "esModuleInterop": true,
     "allowJs": true,
     "strict": true,
-    "noEmit": false,
+    "noEmit": true,
     "outDir": "./dist",
     "rootDir": "./",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmitOnError": false,
+    "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
