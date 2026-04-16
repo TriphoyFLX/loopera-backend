@@ -56,7 +56,7 @@ app.use('/api/users', topUsersRoutes);
 app.use('/api/loops', loopsRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
-app.use('/api/loops', likeRoutes);
+app.use('/api/likes', likeRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/admin', adminRoutes);
 
