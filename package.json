@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --exec ts-node-esm index.ts",
+    "dev": "nodemon --exec tsx index.ts",
     "build": "tsc && cp -r config dist/",
     "start": "tsx index.ts",
     "lint": "eslint ."
@@ -33,6 +33,7 @@
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4"
   }

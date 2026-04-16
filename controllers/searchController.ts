@@ -1,6 +1,6 @@
 import express from 'express';
 import type { Request, Response } from 'express';
-import pool from '../config/database';
+import pool from '../config/database.js';
 
 export const searchArtists = async (req: Request, res: Response) => {
   try {

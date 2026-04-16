@@ -21,11 +21,12 @@ import searchRoutes from './routes/search';
 import adminRoutes from './routes/admin';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT || '5001');
 
 // CORS конфигурация
 const allowedOrigins: (string | RegExp)[] = [
   // Add your production domains here
+  "https://loopera-lpr.vercel.app",
 ];
 
 // Add frontend URL from environment if specified

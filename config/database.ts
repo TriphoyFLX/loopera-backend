@@ -26,6 +26,7 @@ export const initDatabase = async () => {
         password VARCHAR(255) NOT NULL,
         hashtag VARCHAR(100) UNIQUE,
         avatar_url VARCHAR(500),
+        email_verified BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -35,6 +36,7 @@ export const initDatabase = async () => {
     try {
       await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hashtag VARCHAR(100) UNIQUE`);
       await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)`);
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`);
     } catch (error) {
       console.log('Columns might already exist:', error);
     }
@@ -148,10 +150,6 @@ export const initDatabase = async () => {
     `);
     
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_chats_participant2 ON chats(participant2_id);
-    `);
-    
-    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_chats_updated_at ON chats(updated_at DESC);
     `);
 
@@ -187,9 +185,17 @@ export const initDatabase = async () => {
     `);
     
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_artist_subscriptions_hashtag ON artist_subscriptions(artist_hashtag);
+      CREATE INDEX IF NOT EXISTS idx_artist_subscriptions_artist_hashtag ON artist_subscriptions(artist_hashtag);
     `);
-
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_verification_codes_expires_at ON verification_codes(expires_at);
+    `);
+    
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);

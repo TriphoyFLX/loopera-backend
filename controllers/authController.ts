@@ -15,7 +15,7 @@ import('dotenv').then(dotenv => {
   dotenv.config({ path: path.join(projectRoot, '.env') });
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjgsInVzZXJuYW1lIjoiVHJpcGhveSIsImVtYWlsIjoicm9vbW9wODZAZ21haWwuY29tIiwiaWF0IjoxNzc0ODc5NjUzLCJleHAiOjE3NzU0ODQ0NTN9.SUZ77D2bi7S9Wnw_07Id18A-WI5eveCoLV4ZLM893FU';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -27,45 +27,86 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Все поля обязательны' });
     }
 
+    // Валидация email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Введите корректный email адрес' });
+    }
+
+    // Валидация username
+    if (username.length < 3) {
+      return res.status(400).json({ message: 'Имя пользователя должно содержать минимум 3 символа' });
+    }
+
+    if (username.length > 50) {
+      return res.status(400).json({ message: 'Имя пользователя не должно превышать 50 символов' });
+    }
+
     if (password.length < 6) {
       return res.status(400).json({ message: 'Пароль должен содержать минимум 6 символов' });
     }
 
+    if (password.length > 128) {
+      return res.status(400).json({ message: 'Пароль не должен превышать 128 символов' });
+    }
+
     // Проверяем существующего пользователя
     const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1 OR username = $2',
+      'SELECT id, email_verified FROM users WHERE email = $1 OR username = $2',
       [email, username]
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ 
-        message: 'Пользователь с таким email или username уже существует' 
+      const user = existingUser.rows[0];
+      
+      // Если пользователь уже существует и верифицирован - предлагаем войти
+      if (user.email_verified) {
+        return res.status(409).json({ 
+          message: 'Пользователь с таким email или username уже существует. Войдите в аккаунт.',
+          requiresLogin: true
+        });
+      }
+      
+      // Если пользователь существует но не верифицирован - не удаляем, а предлагаем верифицироваться
+      return res.status(403).json({ 
+        message: 'Пользователь с таким email или username уже зарегистрирован, но не верифицирован. Проверьте почту или войдите.',
+        requiresVerification: true,
+        email: user.email
       });
     }
 
     // Хешируем пароль
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Создаем пользователя сразу
+    // Создаем пользователя с email_verified = false
     const result = await pool.query(
-      'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email, created_at',
-      [username, email, hashedPassword]
+      'INSERT INTO users (username, email, password, email_verified) VALUES ($1, $2, $3, $4) RETURNING id, username, email, created_at',
+      [username, email, hashedPassword, false]
     );
 
     const user = result.rows[0];
 
-    // Создаем токен
-    const token = jwt.sign(
-      { userId: user.id, username: user.username },
-      JWT_SECRET,
-      { expiresIn: '7d' }
+    // Генерируем и отправляем код верификации
+    const verificationCode = generateVerificationCode();
+    
+    // Сохраняем код в базу
+    await pool.query(
+      'INSERT INTO verification_codes (email, code, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'10 minutes\')',
+      [email, verificationCode]
     );
 
-    console.log('User registered successfully:', { id: user.id, username: user.username });
+    try {
+      await sendVerificationCode(email, verificationCode);
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      // Не прерываем регистрацию, но предупреждаем пользователя
+    }
+
+    console.log('User registered successfully, verification required:', { id: user.id, username: user.username });
 
     res.status(201).json({
-      message: 'Регистрация успешна',
-      token,
+      message: 'Регистрация успешна. Проверьте почту для подтверждения.',
+      requiresVerification: true,
       user: {
         id: user.id,
         username: user.username,
@@ -81,10 +122,10 @@ export const register = async (req: Request, res: Response) => {
 
 export const verifyEmail = async (req: Request, res: Response) => {
   try {
-    const { email, code, tempData } = req.body;
+    const { email, code } = req.body;
 
-    if (!email || !code || !tempData) {
-      return res.status(400).json({ message: 'Все поля обязательны' });
+    if (!email || !code) {
+      return res.status(400).json({ message: 'Email и код обязательны' });
     }
 
     // Проверяем код верификации
@@ -104,25 +145,29 @@ export const verifyEmail = async (req: Request, res: Response) => {
       [email, code]
     );
 
-    // Создаем пользователя
+    // Обновляем статус верификации пользователя
     const result = await pool.query(
-      'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email, created_at',
-      [tempData.username, tempData.email, tempData.password]
+      'UPDATE users SET email_verified = TRUE WHERE email = $1 RETURNING id, username, email, created_at',
+      [email]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
+    }
 
     const user = result.rows[0];
 
     // Создаем токен
     const token = jwt.sign(
-      { userId: user.id, username: user.username },
+      { userId: user.id, username: user.username, email: user.email },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    console.log('User registered and verified successfully:', { id: user.id, username: user.username });
+    console.log('Email verified successfully:', { id: user.id, username: user.username });
 
-    res.status(201).json({
-      message: 'Регистрация успешно завершена',
+    res.status(200).json({
+      message: 'Email успешно подтвержден',
       token,
       user: {
         id: user.id,
@@ -153,10 +198,10 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Имя пользователя/email и пароль обязательны' });
     }
 
-    // Ищем пользователя по email или username
+    // Ищем пользователя по email или username с проверкой верификации
     console.log('Looking for user with:', loginField);
     const result = await pool.query(
-      'SELECT id, username, email, password FROM users WHERE email = $1 OR username = $1',
+      'SELECT id, username, email, password, email_verified FROM users WHERE email = $1 OR username = $1',
       [loginField]
     );
 
@@ -168,7 +213,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const user = result.rows[0];
-    console.log('Found user:', { id: user.id, username: user.username, email: user.email });
+    console.log('Found user:', { id: user.id, username: user.username, email: user.email, email_verified: user.email_verified });
 
     // Проверяем пароль
     const isMatch = await bcrypt.compare(password, user.password);
@@ -177,6 +222,38 @@ export const login = async (req: Request, res: Response) => {
     if (!isMatch) {
       console.log('Password does not match');
       return res.status(400).json({ message: 'Неверное имя пользователя/email или пароль' });
+    }
+
+    // Проверяем верификацию email только для новых пользователей
+    if (!user.email_verified) {
+      console.log('Email not verified - sending verification code');
+      
+      // Генерируем и отправляем код верификации
+      const code = generateVerificationCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 минут
+
+      // Удаляем старые коды
+      await pool.query('DELETE FROM verification_codes WHERE email = $1', [user.email]);
+
+      // Сохраняем новый код
+      await pool.query(
+        'INSERT INTO verification_codes (email, code, expires_at) VALUES ($1, $2, $3)',
+        [user.email, code, expiresAt]
+      );
+
+      // Отправляем email
+      try {
+        await sendVerificationCode(user.email, code);
+        console.log('Verification code sent to:', user.email);
+      } catch (emailError) {
+        console.error('Error sending verification code:', emailError);
+      }
+
+      return res.status(403).json({ 
+        message: 'Введите код верификации',
+        requiresVerification: true,
+        email: user.email
+      });
     }
 
     // Создаем токен
@@ -231,6 +308,54 @@ export const getProfile = async (req: Request & { user?: any }, res: Response) =
     });
   } catch (error) {
     console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+// Повторная отправка кода верификации
+export const resendVerificationCode = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email обязателен' });
+    }
+
+    // Проверяем существующего пользователя
+    const existingUser = await pool.query(
+      'SELECT id, email_verified FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length === 0) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
+    }
+
+    const user = existingUser.rows[0];
+
+    if (user.email_verified) {
+      return res.status(400).json({ message: 'Аккаунт уже подтвержден' });
+    }
+
+    // Генерируем и сохраняем новый код
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 минут
+
+    // Удаляем старые коды
+    await pool.query('DELETE FROM verification_codes WHERE email = $1', [email]);
+
+    // Сохраняем новый код
+    await pool.query(
+      'INSERT INTO verification_codes (email, code, expires_at) VALUES ($1, $2, $3)',
+      [email, code, expiresAt]
+    );
+
+    // Отправляем email
+    await sendVerificationCode(email, code);
+
+    res.json({ message: 'Код верификации отправлен повторно' });
+  } catch (error) {
+    console.error('Resend verification code error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
