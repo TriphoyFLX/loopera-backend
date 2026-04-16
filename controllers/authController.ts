@@ -2,8 +2,8 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import pool from '../config/database';
-import { generateVerificationCode, sendVerificationCode } from '../services/emailService';
+import pool from '../config/database.js';
+import { generateVerificationCode, sendVerificationCode } from '../services/emailService.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
