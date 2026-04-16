@@ -12,12 +12,12 @@ const router = express.Router();
 router.use(authenticate);
 
 // Лайкнуть/дизлайкнуть луп
-router.post('/loops/:loopId/like', toggleLike);
+router.post('/:loopId/like', toggleLike);
 
 // Получить статус лайка для лупа
-router.get('/loops/:loopId/like-status', getLikeStatus);
+router.get('/:loopId/like-status', getLikeStatus);
 
 // Получить избранные лупы пользователя
-router.get('/loops/liked', getLikedLoops);
+router.get('/liked', getLikedLoops);
 
 export default router;

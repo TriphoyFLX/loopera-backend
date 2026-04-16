@@ -313,46 +313,136 @@ export const getProfile = async (req: Request & { user?: any }, res: Response) =
 };
 
 // Повторная отправка кода верификации
-export const resendVerificationCode = async (req: Request, res: Response) => {
+export const forgotPassword = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
-
+    
     if (!email) {
       return res.status(400).json({ message: 'Email обязателен' });
     }
-
-    // Проверяем существующего пользователя
-    const existingUser = await pool.query(
-      'SELECT id, email_verified FROM users WHERE email = $1',
+    
+    // Ищем пользователя по email
+    const result = await pool.query(
+      'SELECT id, username, email FROM users WHERE email = $1',
       [email]
     );
-
-    if (existingUser.rows.length === 0) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({ message: 'Пользователь с таким email не найден' });
     }
-
-    const user = existingUser.rows[0];
-
-    if (user.email_verified) {
-      return res.status(400).json({ message: 'Аккаунт уже подтвержден' });
-    }
-
-    // Генерируем и сохраняем новый код
+    
+    const user = result.rows[0];
+    console.log('Found user for password reset:', { id: user.id, username: user.username, email: user.email });
+    
+    // Генерируем и сохраняем новый код для сброса пароля
     const code = generateVerificationCode();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 минут
-
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 минут
+    
     // Удаляем старые коды
     await pool.query('DELETE FROM verification_codes WHERE email = $1', [email]);
-
+    
     // Сохраняем новый код
     await pool.query(
       'INSERT INTO verification_codes (email, code, expires_at) VALUES ($1, $2, $3)',
       [email, code, expiresAt]
     );
+    
+    // Отправляем email с кодом сброса
+    try {
+      await sendVerificationCode(email, code);
+      console.log('Password reset code sent to:', email);
+      res.json({ message: 'Код для сброса пароля отправлен на email' });
+    } catch (emailError) {
+      console.error('Error sending password reset code:', emailError);
+      res.status(500).json({ message: 'Ошибка при отправке email' });
+    }
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
 
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: 'Email, код и новый пароль обязательны' });
+    }
+    
+    // Проверяем код
+    const codeResult = await pool.query(
+      'SELECT * FROM verification_codes WHERE email = $1 AND code = $2 AND expires_at > NOW()',
+      [email, code]
+    );
+    
+    if (codeResult.rows.length === 0) {
+      return res.status(400).json({ message: 'Неверный или просроченный код' });
+    }
+    
+    // Удаляем использованный код
+    await pool.query('DELETE FROM verification_codes WHERE email = $1 AND code = $2', [email, code]);
+    
+    // Хешируем новый пароль
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    
+    // Обновляем пароль пользователя
+    await pool.query(
+      'UPDATE users SET password = $1 WHERE email = $2',
+      [hashedPassword, email]
+    );
+    
+    console.log('Password reset successfully for:', email);
+    res.json({ message: 'Пароль успешно изменен' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+export const resendVerificationCode = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email обязателен' });
+    }
+    
+    // Ищем пользователя по email
+    const result = await pool.query(
+      'SELECT id, username, email FROM users WHERE email = $1',
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({ message: 'Пользователь с таким email не найден' });
+    }
+    
+    const user = result.rows[0];
+    console.log('Found user for resend:', { id: user.id, username: user.username, email: user.email });
+    
+    // Генерируем и сохраняем новый код
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 минут
+    
+    // Удаляем старые коды
+    await pool.query('DELETE FROM verification_codes WHERE email = $1', [email]);
+    
+    // Сохраняем новый код
+    await pool.query(
+      'INSERT INTO verification_codes (email, code, expires_at) VALUES ($1, $2, $3)',
+      [email, code, expiresAt]
+    );
+    
     // Отправляем email
-    await sendVerificationCode(email, code);
-
+    try {
+      await sendVerificationCode(email, code);
+      console.log('Verification code sent to:', email);
+    } catch (emailError) {
+      console.error('Error sending verification code:', emailError);
+    }
+    
     res.json({ message: 'Код верификации отправлен повторно' });
   } catch (error) {
     console.error('Resend verification code error:', error);
