@@ -34,6 +34,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as any;
+    console.log('Auth middleware - Token decoded successfully:', decoded);
     req.user = decoded;
     next();
   } catch (error) {
