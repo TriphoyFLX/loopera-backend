@@ -22,7 +22,12 @@ export type AuthRequest = Request & { user?: any };
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const authHeader = req.header('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    console.log('Auth middleware - Headers:', Object.keys(req.headers));
+    console.log('Auth middleware - Authorization header:', authHeader ? 'exists' : 'missing');
+    console.log('Auth middleware - Token:', token ? `${token.substring(0, 20)}...` : 'missing');
 
     if (!token) {
       return res.status(401).json({ message: 'Доступ запрещен. Токен не предоставлен.' });
