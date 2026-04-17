@@ -59,7 +59,7 @@ const fileFilter = (req: express.Request, file: Express.Multer.File, cb: multer.
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 4 * 1024 * 1024, // 4MB (Vercel limit)
   },
   fileFilter: fileFilter
 });
