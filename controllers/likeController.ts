@@ -7,6 +7,9 @@ type Response = express.Response;
 // Лайкнуть/дизлайкнуть луп
 export const toggleLike = async (req: AuthRequest, res: Response) => {
   try {
+    console.log('toggleLike - req.user:', req.user);
+    console.log('toggleLike - req.user.id:', req.user?.id);
+    
     if (!req.user || !req.user.id) {
       return res.status(401).json({ 
         message: 'Не авторизован',
