@@ -159,7 +159,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     // Создаем токен
     const token = jwt.sign(
-      { userId: user.id, username: user.username, email: user.email },
+      { userId: user.id, username: user.username, email: user.email, role: user.role || 'user' },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -173,6 +173,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
         id: user.id,
         username: user.username,
         email: user.email,
+        role: user.role || 'user',
         created_at: user.created_at
       }
     });
@@ -261,7 +262,7 @@ export const login = async (req: Request, res: Response) => {
 
     // Создаем токен
     const token = jwt.sign(
-      { userId: user.id, username: user.username, email: user.email },
+      { userId: user.id, username: user.username, email: user.email, role: user.role || 'user' },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -272,7 +273,8 @@ export const login = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        role: user.role || 'user'
       }
     };
 
@@ -293,7 +295,7 @@ export const getProfile = async (req: Request & { user?: any }, res: Response) =
     const userId = req.user.userId || req.user.id;
 
     const result = await pool.query(
-      'SELECT id, username, email, created_at FROM users WHERE id = $1',
+      'SELECT id, username, email, role, created_at FROM users WHERE id = $1',
       [userId]
     );
 
