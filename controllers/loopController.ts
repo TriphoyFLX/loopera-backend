@@ -139,12 +139,12 @@ export const uploadLoop = [
       console.log('Body keys:', Object.keys(req.body));
       console.log('Body values:', req.body);
 
-      // Проверка авторизации
+      // Проверка авторизации - временно отключена
       if (!req.user || !req.user.id) {
-        console.error('Ошибка: пользователь не авторизован или отсутствует ID');
-        return res.status(401).json({ 
-          message: 'Не авторизован',
-          error: 'User authentication required'
+        // Возвращаем ошибку вместо 401
+        return res.status(400).json({ 
+          message: 'Требуется авторизация для загрузки лупов',
+          error: 'Authentication required'
         });
       }
 
