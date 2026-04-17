@@ -290,9 +290,11 @@ export const getProfile = async (req: Request & { user?: any }, res: Response) =
       return res.status(401).json({ message: 'Не авторизован' });
     }
 
+    const userId = req.user.userId || req.user.id;
+
     const result = await pool.query(
       'SELECT id, username, email, created_at FROM users WHERE id = $1',
-      [req.user.id]
+      [userId]
     );
 
     if (result.rows.length === 0) {
