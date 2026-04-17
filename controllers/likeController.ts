@@ -7,26 +7,20 @@ type Response = express.Response;
 // Лайкнуть/дизлайкнуть луп
 export const toggleLike = async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ 
+        message: 'Не авторизован',
+        error: 'User authentication required'
+      });
+    }
+
     const { loopId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.user.id;
 
     if (!loopId) {
       return res.status(400).json({ 
         message: 'ID лупа обязателен',
         error: 'Loop ID is required'
-      });
-    }
-
-    // Если пользователь не авторизован, просто возвращаем текущее состояние
-    if (!userId) {
-      const likesCount = await pool.query(
-        'SELECT COUNT(*) as count FROM loop_likes WHERE loop_id = $1',
-        [loopId]
-      );
-      return res.json({
-        message: 'Лайк требует авторизации',
-        liked: false,
-        likes_count: parseInt(likesCount.rows[0].count)
       });
     }
 
