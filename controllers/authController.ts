@@ -202,7 +202,7 @@ export const login = async (req: Request, res: Response) => {
     // Ищем пользователя по email или username с проверкой верификации
     console.log('Looking for user with:', loginField);
     const result = await pool.query(
-      'SELECT id, username, email, password, email_verified FROM users WHERE email = $1 OR username = $1',
+      'SELECT id, username, email, password, email_verified, role FROM users WHERE email = $1 OR username = $1',
       [loginField]
     );
 
