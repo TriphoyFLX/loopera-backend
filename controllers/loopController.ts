@@ -59,7 +59,7 @@ const fileFilter = (req: express.Request, file: Express.Multer.File, cb: multer.
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
+    fileSize: 50 * 1024 * 1024, // 50MB
   },
   fileFilter: fileFilter
 });
@@ -140,15 +140,15 @@ export const uploadLoop = [
       console.log('Body values:', req.body);
 
       // Проверка авторизации
-      if (!req.user || !req.user.id) {
+      const userId = req.user?.userId || req.user?.id;
+      
+      if (!req.user || !userId) {
         console.error('Ошибка: пользователь не авторизован или отсутствует ID');
         return res.status(401).json({ 
           message: 'Не авторизован',
           error: 'User authentication required'
         });
       }
-
-      const userId = req.user.id;
 
       // Проверка файла
       if (!req.file) {
@@ -209,7 +209,7 @@ export const uploadLoop = [
         key,
         genre,
         JSON.stringify(tags), // Преобразуем массив в JSON строку для JSONB поля
-        req.user.id
+        userId
       ];
 
       console.log('SQL Query:', sql);
@@ -289,9 +289,10 @@ export const uploadLoop = [
 
 export const getUserLoops = async (req: AuthRequest, res: Response) => {
   try {
-    console.log('Получение лупов пользователя:', req.user?.id);
+    const userId = req.user?.userId || req.user?.id;
+    console.log('Получение лупов пользователя:', userId);
 
-    if (!req.user || !req.user.id) {
+    if (!req.user || !userId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
@@ -304,7 +305,7 @@ export const getUserLoops = async (req: AuthRequest, res: Response) => {
        FROM loops 
        WHERE user_id = $1 
        ORDER BY created_at DESC`,
-      [req.user.id]
+      [userId]
     );
 
     console.log('Найдено лупов:', result.rows.length);
@@ -394,31 +395,23 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
 export const deleteLoop = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.userId || req.user?.id;
 
-    if (!req.user || !req.user.id) {
+    if (!req.user || !userId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
       });
     }
 
-    // Проверяем, что id является строкой и конвертируем в число
-    const idString = Array.isArray(id) ? id[0] : id;
-    
-    if (!idString || isNaN(parseInt(idString))) {
-      return res.status(400).json({
-        message: 'Некорректный ID лупа',
-        error: 'Invalid loop ID'
-      });
-    }
-
+    const idString = id.toString();
     const loopId = parseInt(idString);
-    console.log(`Удаление лупа ${loopId} пользователем ${req.user.id}`);
+    console.log(`Удаление лупа ${loopId} пользователем ${userId}`);
 
     // Проверяем, принадлежит ли луп пользователю
     const loopCheck = await pool.query(
       'SELECT filename FROM loops WHERE id = $1 AND user_id = $2',
-      [loopId, req.user.id]
+      [loopId, userId]
     );
 
     if (loopCheck.rows.length === 0) {
