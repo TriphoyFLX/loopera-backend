@@ -42,9 +42,11 @@ interface ChatWithDetails {
 export const getUserChats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId || req.user?.id;
+    console.log('getUserChats - userId:', userId, 'req.user:', req.user);
     
     if (!req.user || !userId) {
       // Возвращаем пустой массив если не авторизован
+      console.log('getUserChats - not authorized, returning empty array');
       return res.json({ chats: [] });
     }
 
