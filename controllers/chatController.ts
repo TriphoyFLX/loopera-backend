@@ -376,11 +376,20 @@ export const getUserInfo = async (req: Request, res: Response) => {
       });
     }
 
-    const userQuery = `
-      SELECT id, username, created_at
-      FROM users 
-      WHERE id = $1
-    `;
+    // Проверяем, является ли userId числом или username
+    const isNumeric = /^\d+$/.test(userId);
+    
+    const userQuery = isNumeric 
+      ? `
+        SELECT id, username, created_at
+        FROM users 
+        WHERE id = $1
+      `
+      : `
+        SELECT id, username, created_at
+        FROM users 
+        WHERE username = $1
+      `;
 
     const result = await pool.query(userQuery, [userId]);
 
