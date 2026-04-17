@@ -9,7 +9,10 @@ import {
 
 const router = express.Router();
 
-// Все маршруты требуют аутентификации
+// Получение лупов от подписанных артистов (без авторизации, вернет пустой массив если не авторизован)
+router.get('/loops', getSubscribedLoops);
+
+// Все остальные маршруты требуют аутентификации
 router.use(authenticate);
 
 // Получение подписок пользователя
@@ -20,8 +23,5 @@ router.post('/add', addSubscription);
 
 // Удаление подписки
 router.delete('/:subscriptionId', removeSubscription);
-
-// Получение лупов от подписанных артистов
-router.get('/loops', getSubscribedLoops);
 
 export default router;

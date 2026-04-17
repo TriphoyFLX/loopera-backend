@@ -10,7 +10,10 @@ import {
 
 const router = express.Router();
 
-// Все маршруты требуют аутентификации
+// Получение информации о пользователе (без авторизации)
+router.get('/user/:userId', getUserInfo);
+
+// Все остальные маршруты требуют аутентификации
 router.use(authenticate);
 
 // Получение всех чатов пользователя
@@ -24,8 +27,5 @@ router.post('/create', createOrGetChat);
 
 // Отправка сообщения
 router.post('/send', sendMessage);
-
-// Получение информации о пользователе
-router.get('/user/:userId', getUserInfo);
 
 export default router;

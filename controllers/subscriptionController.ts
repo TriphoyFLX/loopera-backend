@@ -158,9 +158,15 @@ export const removeSubscription = async (req: AuthRequest, res: Response) => {
 export const getSubscribedLoops = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({ 
-        message: 'Не авторизован',
-        error: 'User authentication required'
+      // Возвращаем пустой массив если не авторизован
+      return res.json({
+        loops: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 0
+        }
       });
     }
 

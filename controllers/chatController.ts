@@ -42,10 +42,8 @@ interface ChatWithDetails {
 export const getUserChats = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({ 
-        message: 'Не авторизован',
-        error: 'User authentication required'
-      });
+      // Возвращаем пустой массив если не авторизован
+      return res.json({ chats: [] });
     }
 
     const userId = req.user.id;

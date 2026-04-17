@@ -8,14 +8,14 @@ import {
 
 const router = express.Router();
 
-// Все маршруты требуют аутентификации
+// Получить статус лайка для лупа (без авторизации)
+router.get('/:loopId/like-status', getLikeStatus);
+
+// Все остальные маршруты требуют аутентификации
 router.use(authenticate);
 
 // Лайкнуть/дизлайкнуть луп
 router.post('/:loopId/like', toggleLike);
-
-// Получить статус лайка для лупа
-router.get('/:loopId/like-status', getLikeStatus);
 
 // Получить избранные лупы пользователя
 router.get('/liked', getLikedLoops);
