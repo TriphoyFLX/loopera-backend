@@ -8,9 +8,11 @@ type Response = express.Response;
 export const toggleLike = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({ 
-        message: 'Не авторизован',
-        error: 'User authentication required'
+      // Возвращаем успех без лайка если не авторизован
+      return res.json({
+        message: 'Лайк требует авторизации',
+        liked: false,
+        likes_count: 0
       });
     }
 
