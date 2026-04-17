@@ -224,7 +224,9 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Неверное имя пользователя/email или пароль' });
     }
 
+    // ВРЕМЕННО ОТКЛЮЧАЕМ ПРОВЕРКУ ВЕРИФИКАЦИИ EMAIL ДЛЯ РЕШЕНИЯ ПРОБЛЕМЫ АВТОРИЗАЦИИ
     // Проверяем верификацию email только для новых пользователей
+    /*
     if (!user.email_verified) {
       console.log('Email not verified - sending verification code');
       
@@ -255,6 +257,7 @@ export const login = async (req: Request, res: Response) => {
         email: user.email
       });
     }
+    */
 
     // Создаем токен
     const token = jwt.sign(
