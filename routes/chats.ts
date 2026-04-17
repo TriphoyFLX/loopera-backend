@@ -13,11 +13,11 @@ const router = express.Router();
 // Получение информации о пользователе (без авторизации)
 router.get('/user/:userId', getUserInfo);
 
+// Получение всех чатов пользователя (без авторизации, вернет пустой массив)
+router.get('/', getUserChats);
+
 // Все остальные маршруты требуют аутентификации
 router.use(authenticate);
-
-// Получение всех чатов пользователя
-router.get('/', getUserChats);
 
 // Получение сообщений конкретного чата
 router.get('/:chatId/messages', getChatMessages);
