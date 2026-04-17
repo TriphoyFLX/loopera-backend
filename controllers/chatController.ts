@@ -376,8 +376,11 @@ export const getUserInfo = async (req: Request, res: Response) => {
       });
     }
 
+    // Приводим userId к строке
+    const userIdStr = Array.isArray(userId) ? userId[0] : userId;
+
     // Проверяем, является ли userId числом или username
-    const isNumeric = /^\d+$/.test(userId);
+    const isNumeric = /^\d+$/.test(userIdStr);
     
     const userQuery = isNumeric 
       ? `
@@ -391,7 +394,7 @@ export const getUserInfo = async (req: Request, res: Response) => {
         WHERE username = $1
       `;
 
-    const result = await pool.query(userQuery, [userId]);
+    const result = await pool.query(userQuery, [userIdStr]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ 
