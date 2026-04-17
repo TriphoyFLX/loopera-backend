@@ -118,7 +118,9 @@ export const getUserChats = async (req: AuthRequest, res: Response) => {
 // Получение сообщений конкретного чата
 export const getChatMessages = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !userId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
@@ -126,7 +128,6 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
     }
 
     const { chatId } = req.params;
-    const userId = req.user.id;
 
     // Проверяем, имеет ли пользователь доступ к этому чату
     const chatCheck = await pool.query(
@@ -189,7 +190,9 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
 // Создание или получение чата с другим пользователем
 export const createOrGetChat = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const currentUserId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !currentUserId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
@@ -197,7 +200,6 @@ export const createOrGetChat = async (req: AuthRequest, res: Response) => {
     }
 
     const { participantId } = req.body;
-    const currentUserId = req.user.id;
 
     if (!participantId) {
       return res.status(400).json({ 
@@ -296,7 +298,9 @@ export const createOrGetChat = async (req: AuthRequest, res: Response) => {
 // Отправка сообщения
 export const sendMessage = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const senderId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !senderId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
@@ -304,7 +308,6 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     }
 
     const { chatId, content } = req.body;
-    const senderId = req.user.id;
 
     if (!chatId || !content || !content.trim()) {
       return res.status(400).json({ 

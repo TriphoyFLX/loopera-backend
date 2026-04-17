@@ -122,14 +122,14 @@ export const getLikeStatus = async (req: AuthRequest, res: Response) => {
 // Получить избранные лупы пользователя
 export const getLikedLoops = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !userId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
       });
     }
-
-    const userId = req.user.id;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = (page - 1) * limit;

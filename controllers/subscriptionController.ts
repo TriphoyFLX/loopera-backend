@@ -7,14 +7,14 @@ type Response = express.Response;
 // Получение подписок пользователя
 export const getUserSubscriptions = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !userId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
       });
     }
-
-    const userId = req.user.id;
 
     const query = `
       SELECT id, artist_hashtag, created_at
@@ -44,7 +44,9 @@ export const getUserSubscriptions = async (req: AuthRequest, res: Response) => {
 // Добавление подписки на артиста
 export const addSubscription = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !userId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
@@ -52,7 +54,6 @@ export const addSubscription = async (req: AuthRequest, res: Response) => {
     }
 
     const { artist_hashtag } = req.body;
-    const userId = req.user.id;
 
     if (!artist_hashtag || !artist_hashtag.trim()) {
       return res.status(400).json({ 
@@ -108,7 +109,9 @@ export const addSubscription = async (req: AuthRequest, res: Response) => {
 // Удаление подписки
 export const removeSubscription = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !userId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
@@ -116,7 +119,6 @@ export const removeSubscription = async (req: AuthRequest, res: Response) => {
     }
 
     const { subscriptionId } = req.params;
-    const userId = req.user.id;
 
     if (!subscriptionId) {
       return res.status(400).json({ 
