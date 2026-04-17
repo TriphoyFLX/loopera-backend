@@ -1,5 +1,5 @@
 import express from 'express';
-import { simpleAuth, type AuthRequest } from '../middleware/simpleAuth.js';
+import { type AuthRequest } from '../middleware/auth.js';
 import pool from '../config/database.js';
 
 type Response = express.Response;
@@ -157,7 +157,9 @@ export const removeSubscription = async (req: AuthRequest, res: Response) => {
 // Получение лупов от подписанных артистов
 export const getSubscribedLoops = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !userId) {
       // Возвращаем пустой массив если не авторизован
       return res.json({
         loops: [],
@@ -169,8 +171,6 @@ export const getSubscribedLoops = async (req: AuthRequest, res: Response) => {
         }
       });
     }
-
-    const userId = req.user.id;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = (page - 1) * limit;

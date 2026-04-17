@@ -1,5 +1,5 @@
 import express from 'express';
-import { simpleAuth, type AuthRequest } from '../middleware/simpleAuth.js';
+import { type AuthRequest } from '../middleware/auth.js';
 import pool from '../config/database.js';
 import type { IUser } from '../models/User.js';
 
@@ -41,12 +41,12 @@ interface ChatWithDetails {
 // Получение всех чатов пользователя с деталями
 export const getUserChats = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || !req.user.id) {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !userId) {
       // Возвращаем пустой массив если не авторизован
       return res.json({ chats: [] });
     }
-
-    const userId = req.user.id;
 
     const query = `
       SELECT 

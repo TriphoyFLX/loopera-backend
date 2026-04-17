@@ -9,8 +9,11 @@ export const toggleLike = async (req: AuthRequest, res: Response) => {
   try {
     console.log('toggleLike - req.user:', req.user);
     console.log('toggleLike - req.user.id:', req.user?.id);
+    console.log('toggleLike - req.user.userId:', req.user?.userId);
     
-    if (!req.user || !req.user.id) {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!req.user || !userId) {
       return res.status(401).json({ 
         message: 'Не авторизован',
         error: 'User authentication required'
@@ -18,7 +21,6 @@ export const toggleLike = async (req: AuthRequest, res: Response) => {
     }
 
     const { loopId } = req.params;
-    const userId = req.user.id;
 
     if (!loopId) {
       return res.status(400).json({ 
