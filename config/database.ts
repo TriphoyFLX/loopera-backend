@@ -195,7 +195,158 @@ export const initDatabase = async () => {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_codes_expires_at ON verification_codes(expires_at);
     `);
+
+    // Таблица для паков с лупами
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sound_packs (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        price INTEGER NOT NULL CHECK (price >= 0),
+        status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'pending', 'approved', 'rejected')),
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        cover_url VARCHAR(500),
+        voice_tag VARCHAR(100),
+        voice_tag_file VARCHAR(500),
+        text_file VARCHAR(500),
+        preview_url VARCHAR(500),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        moderated_at TIMESTAMP,
+        moderated_by INTEGER REFERENCES users(id),
+        rejection_reason TEXT
+      )
+    `);
+
+    // Таблица для лупов в паках
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pack_loops (
+        id SERIAL PRIMARY KEY,
+        pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
+        loop_id INTEGER NOT NULL REFERENCES loops(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(pack_id, loop_id)
+      )
+    `);
+
+    // Таблица для баланса пользователей
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_balance (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        available_balance INTEGER DEFAULT 0 CHECK (available_balance >= 0),
+        pending_balance INTEGER DEFAULT 0 CHECK (pending_balance >= 0),
+        total_earned INTEGER DEFAULT 0 CHECK (total_earned >= 0),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Таблица для заказов
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
+        buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        seller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        price INTEGER NOT NULL,
+        commission INTEGER NOT NULL,
+        seller_earnings INTEGER NOT NULL,
+        status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Таблица для заявок на вывод средств
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount INTEGER NOT NULL CHECK (amount >= 1000),
+        phone VARCHAR(20) NOT NULL,
+        bank VARCHAR(100) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'rejected')),
+        rejection_reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        processed_at TIMESTAMP,
+        processed_by INTEGER REFERENCES users(id)
+      )
+    `);
+
+    // Таблица для рейтингов паков
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pack_ratings (
+        id SERIAL PRIMARY KEY,
+        pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        review TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(pack_id, user_id)
+      )
+    `);
+
+    // Таблица для жалоб на паки/пользователей
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reported_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        pack_id INTEGER REFERENCES sound_packs(id) ON DELETE CASCADE,
+        reason VARCHAR(50) NOT NULL CHECK (reason IN ('inappropriate_content', 'copyright', 'spam', 'scam', 'other')),
+        description TEXT NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'dismissed')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP,
+        resolved_by INTEGER REFERENCES users(id)
+      )
+    `);
+
+    // Индексы для магазина
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_sound_packs_user_id ON sound_packs(user_id);
+    `);
     
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_sound_packs_status ON sound_packs(status);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_sound_packs_created_at ON sound_packs(created_at DESC);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_pack_loops_pack_id ON pack_loops(pack_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON orders(buyer_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_seller_id ON orders(seller_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_pack_ratings_pack_id ON pack_ratings(pack_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+    `);
+
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);

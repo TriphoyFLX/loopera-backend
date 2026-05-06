@@ -19,6 +19,10 @@ import likeRoutes from './routes/likes.js';
 import topUsersRoutes from './routes/topUsers.js';
 import searchRoutes from './routes/search.js';
 import adminRoutes from './routes/admin.js';
+import shopRoutes from './routes/shop.js';
+import adminShopRoutes from './routes/adminShop.js';
+import packUploadRoutes from './routes/packUpload.js';
+import testUploadRoutes from './routes/testUpload.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5001');
@@ -59,6 +63,10 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/likes', likeRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/shop', shopRoutes);
+app.use('/api/admin/shop', adminShopRoutes);
+app.use('/api/pack-upload', packUploadRoutes);
+app.use('/api/test', testUploadRoutes);
 
 // Раздача статических файлов (загруженные лупы)
 app.use('/uploads', express.static('uploads'));
