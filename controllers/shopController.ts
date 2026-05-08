@@ -320,7 +320,7 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
 // Получить баланс пользователя
 export const getUserBalance = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     const balanceQuery = `
       SELECT *
