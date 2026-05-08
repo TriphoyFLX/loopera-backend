@@ -74,7 +74,7 @@ export const uploadPackLoops = async (req: AuthRequest, res: Response) => {
     }
 
     try {
-      const userId = req.user!.id;
+      const userId = req.user!.userId;
       const files = req.files as Express.Multer.File[];
       
       if (!files || files.length === 0) {
@@ -207,7 +207,7 @@ export const createPackWithFiles = async (req: AuthRequest, res: Response) => {
       loopFiles 
     } = req.body;
     
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     // Проверяем лимит на создание паков (3 в день)
     const todayPacksQuery = `
@@ -309,7 +309,7 @@ export const createPackWithFiles = async (req: AuthRequest, res: Response) => {
 // Получение временных загруженных файлов для сессии
 export const getTempUploadedFiles = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     
     // Здесь можно реализовать получение временных файлов из сессии или временной таблицы
     // Пока просто вернем пустой массив
