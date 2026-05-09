@@ -1,0 +1,4 @@
+# Loopera Database Backup Cron Job
+# Runs daily at 2 AM
+
+0 2 * * * /root/loopera-backend/scripts/auto_backup.sh >> /root/loopera-backend/logs/backup.log 2>&1
