@@ -1,4 +1,5 @@
 import express from 'express';
+import { authenticate } from '../middleware/auth.js';
 import { simpleAdmin } from '../middleware/simpleAdmin.js';
 import { 
   getAdminStats, 
@@ -11,8 +12,8 @@ import {
 
 const router = express.Router();
 
-// Apply simple admin middleware to all routes
-router.use(simpleAdmin);
+// Apply authentication middleware first, then admin middleware
+router.use(authenticate, simpleAdmin);
 
 // Get admin dashboard statistics
 router.get('/stats', getAdminStats);
