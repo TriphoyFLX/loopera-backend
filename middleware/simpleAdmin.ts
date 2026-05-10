@@ -19,8 +19,8 @@ export const simpleAdmin = (req: Request, res: Response, next: NextFunction) => 
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // Only allow specific admin user (Triphoy21 with userId 291)
-  const adminUserId = 291;
+  // Only allow specific admin user (TriphoyFLX with userId 824)
+  const adminUserId = 824;
   if (req.user.userId !== adminUserId && req.user.id !== adminUserId) {
     return res.status(403).json({ error: 'Admin access denied' });
   }
