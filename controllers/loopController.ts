@@ -39,20 +39,15 @@ const fileFilter = (req: express.Request, file: Express.Multer.File, cb: multer.
   
   const allowedExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'webm', 'aac', 'flac'];
   
-  console.log('File MIME type:', file.mimetype);
-  console.log('File originalname:', file.originalname);
-  
   // Проверяем по MIME типу или расширению файла
   const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
   const mimeAllowed = allowedMimes.includes(file.mimetype);
   const extensionAllowed = fileExtension && allowedExtensions.includes(fileExtension);
   
   if (mimeAllowed || extensionAllowed) {
-    console.log('File allowed:', file.mimetype, 'extension:', fileExtension);
     cb(null, true);
   } else {
-    console.log('File rejected:', file.mimetype, 'extension:', fileExtension);
-    cb(new Error(`Неподдерживаемый формат файла: ${file.mimetype}. Разрешены: MP3, WAV, OGG, M4A, WEBM, AAC, FLAC`));
+    cb(new Error('Разрешены только аудио файлы: MP3, WAV, OGG, M4A, WebM, AAC, FLAC'));
   }
 };
 
