@@ -14,12 +14,6 @@ declare global {
 }
 
 export const simpleAdmin = (req: Request, res: Response, next: NextFunction) => {
-  // Просто пропускаем все запросы к админке
-  req.user = { 
-    userId: 11, 
-    username: 'loopera_admin', 
-    email: 'admin@loopera.com',
-    id: 11
-  };
-  next();
+  // Disable admin routes for security - they were allowing anyone to delete loops
+  return res.status(403).json({ error: 'Admin routes are disabled for security' });
 };
