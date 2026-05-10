@@ -4,10 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Загружаем переменные окружения
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.join(__dirname, '..');
-dotenv.config({ path: path.join(projectRoot, '.env') });
+dotenv.config();
 
 console.log('EMAIL_USER from env:', process.env.EMAIL_USER);
 console.log('EMAIL_PASS from env:', process.env.EMAIL_PASS ? '***' : 'undefined');
