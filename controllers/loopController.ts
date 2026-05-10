@@ -103,7 +103,7 @@ const parseTags = (tags: any): string[] => {
 
 // Валидация параметров
 const validateLoopParams = (body: any) => {
-  const { title, bpm, key, genre, tags } = body;
+  const { title, bpm, key, genre, tags, instagram, telegram } = body;
   
   if (!title || typeof title !== 'string' || title.trim().length === 0) {
     throw new Error('Название лупа обязательно и должно быть непустой строкой');
@@ -118,7 +118,9 @@ const validateLoopParams = (body: any) => {
     bpm: bpm ? parseInt(bpm) : null,
     key: key || null,
     genre: genre || null,
-    tags: parseTags(tags)
+    tags: parseTags(tags),
+    instagram: instagram || null,
+    telegram: telegram || null
   };
 };
 
@@ -174,9 +176,9 @@ export const uploadLoop = [
         });
       }
 
-      const { title, bpm, key, genre, tags } = validatedParams;
+      const { title, bpm, key, genre, tags, instagram, telegram } = validatedParams;
       
-      console.log('Валидированные параметры:', { title, bpm, key, genre, tags });
+      console.log('Валидированные параметры:', { title, bpm, key, genre, tags, instagram, telegram });
 
       // Проверка подключения к базе данных
       if (!pool) {
@@ -194,10 +196,12 @@ export const uploadLoop = [
           key,
           genre,
           tags,
-          user_id
+          user_id,
+          instagram,
+          telegram
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id, title, filename, original_name, file_size, bpm, key, genre, tags, user_id, created_at
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id, title, filename, original_name, file_size, bpm, key, genre, tags, user_id, created_at, instagram, telegram
       `;
       
       const params = [
@@ -209,7 +213,9 @@ export const uploadLoop = [
         key,
         genre,
         JSON.stringify(tags), // Преобразуем массив в JSON строку для JSONB поля
-        userId
+        userId,
+        instagram,
+        telegram
       ];
 
       console.log('SQL Query:', sql);
