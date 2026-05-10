@@ -82,20 +82,47 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = (page - 1) * limit;
+    const search = req.query.search as string || '';
+    const status = req.query.status as string || 'all';
 
-    const usersQuery = `
-      SELECT id, username, email, created_at,
+    let usersQuery = `
+      SELECT id, username, email, created_at, is_banned,
              (SELECT COUNT(*) FROM loops WHERE user_id = users.id) as loop_count
       FROM users
-      ORDER BY created_at DESC
-      LIMIT $1 OFFSET $2
+      WHERE 1=1
     `;
+    
+    let countQuery = 'SELECT COUNT(*) as total FROM users WHERE 1=1';
+    
+    const params: any[] = [];
+    let paramIndex = 1;
 
-    const countQuery = 'SELECT COUNT(*) as total FROM users';
+    // Add search filter
+    if (search) {
+      const searchCondition = ` AND (username ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
+      usersQuery += searchCondition;
+      countQuery += searchCondition;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    // Add status filter
+    if (status === 'banned') {
+      const statusCondition = ` AND is_banned = true`;
+      usersQuery += statusCondition;
+      countQuery += statusCondition;
+    } else if (status === 'active') {
+      const statusCondition = ` AND is_banned = false`;
+      usersQuery += statusCondition;
+      countQuery += statusCondition;
+    }
+
+    usersQuery += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
 
     const [usersResult, countResult] = await Promise.all([
-      pool.query(usersQuery, [limit, offset]),
-      pool.query(countQuery)
+      pool.query(usersQuery, params),
+      pool.query(countQuery, params.slice(0, paramIndex - 1))
     ]);
 
     const totalUsers = parseInt(countResult.rows[0].total);
