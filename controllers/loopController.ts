@@ -306,7 +306,7 @@ export const getUserLoops = async (req: AuthRequest, res: Response) => {
     }
 
     const result = await pool.query(
-      `SELECT id, title, filename, original_name, file_size, duration, bpm, key, genre, tags, created_at, updated_at,
+      `SELECT id, title, filename, original_name, file_size, duration, bpm, key, genre, tags, created_at, updated_at, instagram, telegram,
               user_id
        FROM loops 
        WHERE user_id = $1 
@@ -354,7 +354,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
 
     // Оптимизированный запрос с индексацией
     const result = await pool.query(
-      `SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at,
+      `SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
               u.username as author, u.id as author_id, l.user_id
        FROM loops l 
        JOIN users u ON l.user_id = u.id 
