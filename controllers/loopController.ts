@@ -330,6 +330,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
     const offset = (page - 1) * limit;
     const sortBy = req.query.sortBy as string || 'created_at'; // 'created_at' или 'likes'
+    const tag = req.query.tag as string || null; // Фильтр по тегу
 
     if (page < 1 || limit < 1) {
       return res.status(400).json({
@@ -338,7 +339,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       });
     }
 
-    console.log(`Получение всех лупов: страница ${page}, лимит ${limit}, сортировка: ${sortBy}`);
+    console.log(`Получение всех лупов: страница ${page}, лимит ${limit}, сортировка: ${sortBy}, тег: ${tag}`);
 
     // Проверим текущего пользователя базы данных
     try {
@@ -364,6 +365,12 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
     let query = '';
     let params: any[] = [limit, offset];
 
+    // Добавляем условие для фильтрации по тегу
+    let whereClause = '';
+    if (tag) {
+      whereClause = `WHERE l.tags::text LIKE '%${tag}%'`;
+    }
+
     if (hasLikesTable && sortBy === 'likes') {
       query = `
         SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
@@ -371,6 +378,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
                 (SELECT COUNT(*) FROM likes WHERE loop_id = l.id) as like_count
          FROM loops l 
          JOIN users u ON l.user_id = u.id 
+         ${whereClause}
          ORDER BY like_count DESC, l.created_at DESC
          LIMIT $1 OFFSET $2`;
     } else if (sortBy === 'likes') {
@@ -380,6 +388,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
                 u.username as author, u.id as author_id, l.user_id
          FROM loops l 
          JOIN users u ON l.user_id = u.id 
+         ${whereClause}
          ORDER BY l.created_at DESC
          LIMIT $1 OFFSET $2`;
     } else {
@@ -388,6 +397,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
                 u.username as author, u.id as author_id, l.user_id
          FROM loops l 
          JOIN users u ON l.user_id = u.id 
+         ${whereClause}
          ORDER BY l.created_at DESC
          LIMIT $1 OFFSET $2`;
     }
