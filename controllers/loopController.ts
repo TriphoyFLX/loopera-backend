@@ -355,16 +355,44 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
     }
 
     // Оптимизированный запрос с индексацией
-    const result = await pool.query(
-      `SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
-              u.username as author, u.id as author_id, l.user_id,
-              (SELECT COUNT(*) FROM likes WHERE loop_id = l.id) as like_count
-       FROM loops l 
-       JOIN users u ON l.user_id = u.id 
-       ORDER BY ${orderByClause}
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
+    // Проверяем существует ли таблица likes перед использованием
+    const likesTableExists = await pool.query(
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'likes')"
     );
+    const hasLikesTable = likesTableExists.rows[0].exists;
+
+    let query = '';
+    let params: any[] = [limit, offset];
+
+    if (hasLikesTable && sortBy === 'likes') {
+      query = `
+        SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
+                u.username as author, u.id as author_id, l.user_id,
+                (SELECT COUNT(*) FROM likes WHERE loop_id = l.id) as like_count
+         FROM loops l 
+         JOIN users u ON l.user_id = u.id 
+         ORDER BY like_count DESC, l.created_at DESC
+         LIMIT $1 OFFSET $2`;
+    } else if (sortBy === 'likes') {
+      // Если таблицы likes нет, сортируем просто по created_at
+      query = `
+        SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
+                u.username as author, u.id as author_id, l.user_id
+         FROM loops l 
+         JOIN users u ON l.user_id = u.id 
+         ORDER BY l.created_at DESC
+         LIMIT $1 OFFSET $2`;
+    } else {
+      query = `
+        SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
+                u.username as author, u.id as author_id, l.user_id
+         FROM loops l 
+         JOIN users u ON l.user_id = u.id 
+         ORDER BY l.created_at DESC
+         LIMIT $1 OFFSET $2`;
+    }
+
+    const result = await pool.query(query, params);
 
     // Оптимизированный подсчет totalCount с кэшированием
     let totalCount;
@@ -406,13 +434,14 @@ export const getPopularHashtags = async (req: express.Request, res: Response) =>
     console.log(`Получение популярных хэштегов: лимит ${limit}`);
 
     // Получаем все теги из всех лупов и подсчитываем их частоту
+    // tags - это jsonb массив, поэтому используем jsonb_array_elements
     const result = await pool.query(
       `SELECT 
-        unnest(tags) as tag,
+        jsonb_array_elements_text(tags) as tag,
         COUNT(*) as count
        FROM loops 
-       WHERE tags IS NOT NULL AND array_length(tags, 1) > 0
-       GROUP BY unnest(tags)
+       WHERE tags IS NOT NULL AND jsonb_array_length(tags) > 0
+       GROUP BY jsonb_array_elements_text(tags)
        ORDER BY count DESC
        LIMIT $1`,
       [limit]
