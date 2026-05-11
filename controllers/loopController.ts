@@ -327,8 +327,9 @@ export const getUserLoops = async (req: AuthRequest, res: Response) => {
 export const getAllLoops = async (req: express.Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50); // Уменьшили лимит для производительности
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
     const offset = (page - 1) * limit;
+    const sortBy = req.query.sortBy as string || 'created_at'; // 'created_at' или 'likes'
 
     if (page < 1 || limit < 1) {
       return res.status(400).json({
@@ -337,7 +338,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       });
     }
 
-    console.log(`Получение всех лупов: страница ${page}, лимит ${limit}`);
+    console.log(`Получение всех лупов: страница ${page}, лимит ${limit}, сортировка: ${sortBy}`);
 
     // Проверим текущего пользователя базы данных
     try {
@@ -347,13 +348,20 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       console.log('Ошибка при получении текущего пользователя:', e);
     }
 
+    // Определяем сортировку
+    let orderByClause = 'l.created_at DESC';
+    if (sortBy === 'likes') {
+      orderByClause = 'like_count DESC, l.created_at DESC';
+    }
+
     // Оптимизированный запрос с индексацией
     const result = await pool.query(
       `SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
-              u.username as author, u.id as author_id, l.user_id
+              u.username as author, u.id as author_id, l.user_id,
+              (SELECT COUNT(*) FROM likes WHERE loop_id = l.id) as like_count
        FROM loops l 
        JOIN users u ON l.user_id = u.id 
-       ORDER BY l.created_at DESC 
+       ORDER BY ${orderByClause}
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
@@ -366,10 +374,8 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       // Только для первой страницы считаем общее количество
       const countResult = await pool.query('SELECT COUNT(*) FROM loops');
       totalCount = parseInt(countResult.rows[0].count);
-      // В будущем можно сохранить в Redis или другой кэш
     } else {
-      // Для остальных страниц можно использовать приблизительный count или брать из кэша
-      totalCount = null; // Позволяем фронтенду показать "Загрузить еще"
+      totalCount = null;
     }
 
     console.log('Найдено лупов:', result.rows.length, 'всего:', totalCount || 'не считано');
@@ -381,7 +387,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
         limit,
         total: totalCount,
         pages: totalCount ? Math.ceil(totalCount / limit) : null,
-        hasMore: result.rows.length === limit // Для бесконечной прокрутки
+        hasMore: result.rows.length === limit
       }
     });
   } catch (error) {
