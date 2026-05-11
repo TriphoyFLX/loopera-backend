@@ -354,18 +354,18 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       console.log('Ошибка при получении текущего пользователя:', e);
     }
 
-    // Определяем сортировку
-    let orderByClause = 'l.created_at DESC';
-    if (sortBy === 'likes') {
-      orderByClause = 'like_count DESC, l.created_at DESC';
-    }
-
     // Оптимизированный запрос с индексацией
     // Проверяем существует ли таблица likes перед использованием
     const likesTableExists = await pool.query(
       "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'likes')"
     );
     const hasLikesTable = likesTableExists.rows[0].exists;
+
+    // Определяем сортировку
+    let orderByClause = 'l.created_at DESC';
+    if (sortBy === 'likes' && hasLikesTable) {
+      orderByClause = 'like_count DESC, l.created_at DESC';
+    }
 
     // Строим WHERE clause с всеми фильтрами
     const conditions: string[] = [];
