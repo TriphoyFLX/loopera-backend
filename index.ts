@@ -69,6 +69,7 @@ app.use('/api/pack-upload', packUploadRoutes);
 app.use('/api/test', testUploadRoutes);
 
 // Раздача статических файлов (загруженные лупы)
+app.use('/uploads/loops', express.static('uploads/loops'));
 app.use('/uploads', express.static('uploads'));
 
 // Раздача статических файлов фронтенда
