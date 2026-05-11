@@ -399,6 +399,42 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
   }
 };
 
+export const getPopularHashtags = async (req: express.Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    console.log(`Получение популярных хэштегов: лимит ${limit}`);
+
+    // Получаем все теги из всех лупов и подсчитываем их частоту
+    const result = await pool.query(
+      `SELECT 
+        unnest(tags) as tag,
+        COUNT(*) as count
+       FROM loops 
+       WHERE tags IS NOT NULL AND array_length(tags, 1) > 0
+       GROUP BY unnest(tags)
+       ORDER BY count DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    console.log('Найдено хэштегов:', result.rows.length);
+
+    res.json({
+      hashtags: result.rows.map(row => ({
+        tag: row.tag,
+        count: parseInt(row.count)
+      }))
+    });
+  } catch (error) {
+    console.error('Get popular hashtags error:', error);
+    res.status(500).json({ 
+      message: 'Ошибка сервера при получении популярных хэштегов',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
 export const deleteLoop = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
