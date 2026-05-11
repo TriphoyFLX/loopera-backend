@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { uploadLoop, getUserLoops, getAllLoops, deleteLoop, getPopularHashtags } from '../controllers/loopController.js';
+import { uploadLoop, getUserLoops, getAllLoops, deleteLoop, getPopularHashtags, getRandomLoops } from '../controllers/loopController.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
@@ -15,6 +15,9 @@ router.get('/', getAllLoops);
 
 // Получение популярных хэштегов (публичный)
 router.get('/hashtags/popular', getPopularHashtags);
+
+// Получение случайных лупов (публичный)
+router.get('/random', getRandomLoops);
 
 // Удаление лупа (требует авторизации)
 router.delete('/:id', authenticate, deleteLoop);

@@ -331,6 +331,11 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
     const offset = (page - 1) * limit;
     const sortBy = req.query.sortBy as string || 'created_at'; // 'created_at' или 'likes'
     const tag = req.query.tag as string || null; // Фильтр по тегу
+    const genre = req.query.genre as string || null; // Фильтр по жанру
+    const minBpm = parseInt(req.query.minBpm as string) || null; // Минимальный BPM
+    const maxBpm = parseInt(req.query.maxBpm as string) || null; // Максимальный BPM
+    const key = req.query.key as string || null; // Фильтр по тональности
+    const search = req.query.search as string || null; // Поиск по названию/автору
 
     if (page < 1 || limit < 1) {
       return res.status(400).json({
@@ -339,7 +344,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       });
     }
 
-    console.log(`Получение всех лупов: страница ${page}, лимит ${limit}, сортировка: ${sortBy}, тег: ${tag}`);
+    console.log(`Получение всех лупов: страница ${page}, лимит ${limit}, сортировка: ${sortBy}, тег: ${tag}, жанр: ${genre}, BPM: ${minBpm}-${maxBpm}, тональность: ${key}, поиск: ${search}`);
 
     // Проверим текущего пользователя базы данных
     try {
@@ -362,14 +367,51 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
     );
     const hasLikesTable = likesTableExists.rows[0].exists;
 
-    let query = '';
-    let params: any[] = [limit, offset];
+    // Строим WHERE clause с всеми фильтрами
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
 
-    // Добавляем условие для фильтрации по тегу
-    let whereClause = '';
     if (tag) {
-      whereClause = `WHERE l.tags::text LIKE '%${tag}%'`;
+      conditions.push(`l.tags::text LIKE $${paramIndex}`);
+      params.push(`%${tag}%`);
+      paramIndex++;
     }
+
+    if (genre) {
+      conditions.push(`l.genre = $${paramIndex}`);
+      params.push(genre);
+      paramIndex++;
+    }
+
+    if (minBpm) {
+      conditions.push(`l.bpm >= $${paramIndex}`);
+      params.push(minBpm);
+      paramIndex++;
+    }
+
+    if (maxBpm) {
+      conditions.push(`l.bpm <= $${paramIndex}`);
+      params.push(maxBpm);
+      paramIndex++;
+    }
+
+    if (key) {
+      conditions.push(`l.key = $${paramIndex}`);
+      params.push(key);
+      paramIndex++;
+    }
+
+    if (search) {
+      conditions.push(`(l.title ILIKE $${paramIndex} OR u.username ILIKE $${paramIndex})`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    let query = '';
+    let queryParams: any[] = [...params, limit, offset];
 
     if (hasLikesTable && sortBy === 'likes') {
       query = `
@@ -380,17 +422,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
          JOIN users u ON l.user_id = u.id 
          ${whereClause}
          ORDER BY like_count DESC, l.created_at DESC
-         LIMIT $1 OFFSET $2`;
-    } else if (sortBy === 'likes') {
-      // Если таблицы likes нет, сортируем просто по created_at
-      query = `
-        SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
-                u.username as author, u.id as author_id, l.user_id
-         FROM loops l 
-         JOIN users u ON l.user_id = u.id 
-         ${whereClause}
-         ORDER BY l.created_at DESC
-         LIMIT $1 OFFSET $2`;
+         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     } else {
       query = `
         SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
@@ -398,11 +430,11 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
          FROM loops l 
          JOIN users u ON l.user_id = u.id 
          ${whereClause}
-         ORDER BY l.created_at DESC
-         LIMIT $1 OFFSET $2`;
+         ORDER BY ${orderByClause}
+         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     }
 
-    const result = await pool.query(query, params);
+    const result = await pool.query(query, queryParams);
 
     // Оптимизированный подсчет totalCount с кэшированием
     let totalCount;
@@ -469,6 +501,37 @@ export const getPopularHashtags = async (req: express.Request, res: Response) =>
     console.error('Get popular hashtags error:', error);
     res.status(500).json({ 
       message: 'Ошибка сервера при получении популярных хэштегов',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+export const getRandomLoops = async (req: express.Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 20);
+
+    console.log(`Получение случайных лупов: лимит ${limit}`);
+
+    // Получаем случайные лупы с использованием ORDER BY RANDOM()
+    const result = await pool.query(
+      `SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
+              u.username as author, u.id as author_id, l.user_id
+       FROM loops l 
+       JOIN users u ON l.user_id = u.id 
+       ORDER BY RANDOM()
+       LIMIT $1`,
+      [limit]
+    );
+
+    console.log('Найдено случайных лупов:', result.rows.length);
+
+    res.json({
+      loops: result.rows
+    });
+  } catch (error) {
+    console.error('Get random loops error:', error);
+    res.status(500).json({ 
+      message: 'Ошибка сервера при получении случайных лупов',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
