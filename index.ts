@@ -23,6 +23,7 @@ import shopRoutes from './routes/shop.js';
 import adminShopRoutes from './routes/adminShop.js';
 import packUploadRoutes from './routes/packUpload.js';
 import testUploadRoutes from './routes/testUpload.js';
+import beatRoutes from './routes/beats.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5001');
@@ -67,10 +68,12 @@ app.use('/api/shop', shopRoutes);
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/pack-upload', packUploadRoutes);
 app.use('/api/test', testUploadRoutes);
+app.use('/api/beats', beatRoutes);
 
 // Раздача статических файлов (загруженные лупы)
 app.use('/uploads/loops', express.static('uploads/loops'));
 app.use('/uploads', express.static('uploads'));
+app.use('/uploads/beats', express.static('uploads/beats'));
 
 // Раздача статических файлов фронтенда
 app.use(express.static(path.join(projectRoot, 'frontend-repo', 'dist')));
