@@ -119,6 +119,99 @@ const validateLoopParams = (body: any) => {
   };
 };
 
+export const trackTelegramClick = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    const loopId = parseInt(req.params.loopId as string);
+
+    if (!userId) {
+      return res.status(401).json({ 
+        message: 'Не авторизован',
+        error: 'User authentication required'
+      });
+    }
+
+    if (!loopId) {
+      return res.status(400).json({ 
+        message: 'ID лупа обязателен',
+        error: 'Loop ID required'
+      });
+    }
+
+    // Insert click record
+    await pool.query(
+      'INSERT INTO telegram_clicks (user_id, loop_id) VALUES ($1, $2)',
+      [userId, loopId]
+    );
+
+    res.json({ message: 'Клик записан' });
+  } catch (error) {
+    console.error('Error tracking telegram click:', error);
+    res.status(500).json({ 
+      message: 'Ошибка при записи клика',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+export const getUserStats = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ 
+        message: 'Не авторизован',
+        error: 'User authentication required'
+      });
+    }
+
+    // Get total loops count
+    const loopsResult = await pool.query(
+      'SELECT COUNT(*) as count FROM loops WHERE user_id = $1',
+      [userId]
+    );
+    const totalLoops = parseInt(loopsResult.rows[0].count);
+
+    // Get total likes on user's loops
+    const likesResult = await pool.query(
+      'SELECT COUNT(*) as count FROM loop_likes WHERE loop_id IN (SELECT id FROM loops WHERE user_id = $1)',
+      [userId]
+    );
+    const totalLikes = parseInt(likesResult.rows[0].count);
+
+    // Get total Telegram clicks on user's loops
+    const telegramClicksResult = await pool.query(
+      'SELECT COUNT(*) as count FROM telegram_clicks WHERE loop_id IN (SELECT id FROM loops WHERE user_id = $1)',
+      [userId]
+    );
+    const totalTelegramClicks = parseInt(telegramClicksResult.rows[0].count);
+
+    // Get total file size
+    const fileSizeResult = await pool.query(
+      'SELECT SUM(file_size) as total_size FROM loops WHERE user_id = $1',
+      [userId]
+    );
+    const totalFileSize = fileSizeResult.rows[0].total_size || 0;
+
+    // Get average likes per loop
+    const avgLikes = totalLoops > 0 ? (totalLikes / totalLoops) : 0;
+
+    res.json({
+      total_loops: totalLoops,
+      total_likes: totalLikes,
+      total_telegram_clicks: totalTelegramClicks,
+      total_file_size: totalFileSize,
+      avg_likes_per_loop: avgLikes
+    });
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({ 
+      message: 'Ошибка при получении статистики',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
 export const uploadLoop = [
   upload.single('loop'),
   async (req: AuthRequest, res: Response) => {

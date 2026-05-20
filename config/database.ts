@@ -196,6 +196,25 @@ export const initDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_verification_codes_expires_at ON verification_codes(expires_at);
     `);
 
+    // Таблица для кликов по Telegram
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS telegram_clicks (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        loop_id INTEGER REFERENCES loops(id) ON DELETE CASCADE,
+        clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Индекс для кликов по Telegram
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_telegram_clicks_user_id ON telegram_clicks(user_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_telegram_clicks_loop_id ON telegram_clicks(loop_id);
+    `);
+
     // Таблица для паков с лупами
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sound_packs (
