@@ -43,7 +43,7 @@ const upload = multer({
 });
 
 // Routes
-router.post('/', authenticate, upload.single('beat'), createBeat);
+router.post('/upload', authenticate, upload.single('beat'), createBeat);
 router.get('/', getAllBeats);
 router.get('/:id', getBeatById);
 router.get('/loop/:loopId/collaborations', getLoopCollaborations);
