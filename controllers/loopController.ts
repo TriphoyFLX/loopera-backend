@@ -176,16 +176,18 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
         break;
       case 'week':
         groupBy = 'day';
-        interval = '1 day';
+        interval = '7 days';
         break;
       case 'month':
         groupBy = 'day';
-        interval = '1 day';
+        interval = '30 days';
         break;
       default:
         groupBy = 'day';
-        interval = '1 day';
+        interval = '7 days';
     }
+
+    console.log('Fetching stats history for user:', userId, 'period:', period, 'groupBy:', groupBy, 'interval:', interval);
 
     // Get likes over time
     const likesQuery = `
@@ -194,12 +196,14 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
         COUNT(*) as count
       FROM loop_likes
       WHERE loop_id IN (SELECT id FROM loops WHERE user_id = $1)
-      AND created_at >= NOW() - INTERVAL '${period}'
+      AND created_at >= NOW() - INTERVAL '${interval}'
       GROUP BY date_trunc('${groupBy}', created_at)
       ORDER BY date
     `;
 
+    console.log('Likes query:', likesQuery);
     const likesResult = await pool.query(likesQuery, [userId]);
+    console.log('Likes result:', likesResult.rows);
 
     // Get loops uploaded over time
     const loopsQuery = `
@@ -208,12 +212,14 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
         COUNT(*) as count
       FROM loops
       WHERE user_id = $1
-      AND created_at >= NOW() - INTERVAL '${period}'
+      AND created_at >= NOW() - INTERVAL '${interval}'
       GROUP BY date_trunc('${groupBy}', created_at)
       ORDER BY date
     `;
 
+    console.log('Loops query:', loopsQuery);
     const loopsResult = await pool.query(loopsQuery, [userId]);
+    console.log('Loops result:', loopsResult.rows);
 
     // Get telegram clicks over time
     const telegramQuery = `
@@ -222,12 +228,14 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
         COUNT(*) as count
       FROM telegram_clicks
       WHERE loop_id IN (SELECT id FROM loops WHERE user_id = $1)
-      AND clicked_at >= NOW() - INTERVAL '${period}'
+      AND clicked_at >= NOW() - INTERVAL '${interval}'
       GROUP BY date_trunc('${groupBy}', clicked_at)
       ORDER BY date
     `;
 
+    console.log('Telegram query:', telegramQuery);
     const telegramResult = await pool.query(telegramQuery, [userId]);
+    console.log('Telegram result:', telegramResult.rows);
 
     res.json({
       likes_over_time: likesResult.rows,
