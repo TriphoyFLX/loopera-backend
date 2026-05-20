@@ -154,6 +154,95 @@ export const trackTelegramClick = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    const period = (req.query.period as string) || 'week'; // day, week, month
+
+    if (!userId) {
+      return res.status(401).json({ 
+        message: 'Не авторизован',
+        error: 'User authentication required'
+      });
+    }
+
+    let groupBy: string;
+    let interval: string;
+
+    switch (period) {
+      case 'day':
+        groupBy = 'hour';
+        interval = '1 hour';
+        break;
+      case 'week':
+        groupBy = 'day';
+        interval = '1 day';
+        break;
+      case 'month':
+        groupBy = 'day';
+        interval = '1 day';
+        break;
+      default:
+        groupBy = 'day';
+        interval = '1 day';
+    }
+
+    // Get likes over time
+    const likesQuery = `
+      SELECT 
+        date_trunc('${groupBy}', created_at) as date,
+        COUNT(*) as count
+      FROM loop_likes
+      WHERE loop_id IN (SELECT id FROM loops WHERE user_id = $1)
+      AND created_at >= NOW() - INTERVAL '${period}'
+      GROUP BY date_trunc('${groupBy}', created_at)
+      ORDER BY date
+    `;
+
+    const likesResult = await pool.query(likesQuery, [userId]);
+
+    // Get loops uploaded over time
+    const loopsQuery = `
+      SELECT 
+        date_trunc('${groupBy}', created_at) as date,
+        COUNT(*) as count
+      FROM loops
+      WHERE user_id = $1
+      AND created_at >= NOW() - INTERVAL '${period}'
+      GROUP BY date_trunc('${groupBy}', created_at)
+      ORDER BY date
+    `;
+
+    const loopsResult = await pool.query(loopsQuery, [userId]);
+
+    // Get telegram clicks over time
+    const telegramQuery = `
+      SELECT 
+        date_trunc('${groupBy}', clicked_at) as date,
+        COUNT(*) as count
+      FROM telegram_clicks
+      WHERE loop_id IN (SELECT id FROM loops WHERE user_id = $1)
+      AND clicked_at >= NOW() - INTERVAL '${period}'
+      GROUP BY date_trunc('${groupBy}', clicked_at)
+      ORDER BY date
+    `;
+
+    const telegramResult = await pool.query(telegramQuery, [userId]);
+
+    res.json({
+      likes_over_time: likesResult.rows,
+      loops_over_time: loopsResult.rows,
+      telegram_clicks_over_time: telegramResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching user stats history:', error);
+    res.status(500).json({ 
+      message: 'Ошибка при получении истории статистики',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
 export const getUserStats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId || req.user?.id;

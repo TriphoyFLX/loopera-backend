@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { uploadLoop, getUserLoops, getAllLoops, deleteLoop, getPopularHashtags, getRandomLoops, getUserStats, trackTelegramClick } from '../controllers/loopController.js';
+import { uploadLoop, getUserLoops, getAllLoops, deleteLoop, getPopularHashtags, getRandomLoops, getUserStats, getUserStatsHistory, trackTelegramClick } from '../controllers/loopController.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
@@ -9,6 +9,9 @@ router.post('/upload', authenticate, uploadLoop);
 
 // Получение статистики пользователя (требует авторизации)
 router.get('/stats', authenticate, getUserStats);
+
+// Получение истории статистики (требует авторизации)
+router.get('/stats/history', authenticate, getUserStatsHistory);
 
 // Отслеживание клика по Telegram (требует авторизации)
 router.post('/telegram-click/:loopId', authenticate, trackTelegramClick);
