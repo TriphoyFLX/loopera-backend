@@ -30,7 +30,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit for beats
+    fileSize: 4 * 1024 * 1024 // 4MB limit (same as loops to avoid Vercel proxy issues)
   },
   fileFilter: function (req, file, cb) {
     const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/webm', 'audio/aac', 'audio/flac'];
