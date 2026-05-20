@@ -355,9 +355,9 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
     }
 
     // Оптимизированный запрос с индексацией
-    // Проверяем существует ли таблица likes перед использованием
+    // Проверяем существует ли таблица loop_likes перед использованием
     const likesTableExists = await pool.query(
-      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'likes')"
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'loop_likes')"
     );
     const hasLikesTable = likesTableExists.rows[0].exists;
 
@@ -417,7 +417,7 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       query = `
         SELECT l.id, l.title, l.filename, l.original_name, l.file_size, l.duration, l.bpm, l.key, l.genre, l.tags, l.created_at, l.updated_at, l.instagram, l.telegram,
                 u.username as author, u.id as author_id, l.user_id,
-                (SELECT COUNT(*) FROM likes WHERE loop_id = l.id) as like_count
+                (SELECT COUNT(*) FROM loop_likes WHERE loop_id = l.id) as like_count
          FROM loops l 
          JOIN users u ON l.user_id = u.id 
          ${whereClause}
