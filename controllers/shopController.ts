@@ -206,6 +206,12 @@ export const createPack = async (req: AuthRequest, res: Response) => {
       WHERE id = $1
     `;
     const userResult = await client.query(userQuery, [userId]);
+
+    if (userResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     const userCreatedAt = new Date(userResult.rows[0].created_at);
     const daysSinceCreation = Math.floor((Date.now() - userCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
 
