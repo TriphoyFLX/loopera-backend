@@ -172,7 +172,7 @@ export const createPack = async (req: AuthRequest, res: Response) => {
   
   try {
     const { title, description, price, voice_tag } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     // Проверяем наличие архива
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
