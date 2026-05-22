@@ -229,7 +229,7 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     // Создаем пак
     const packQuery = `
       INSERT INTO sound_packs (title, description, price, user_id, voice_tag, status, archive_url, preview_url, preview_url_2, voice_tag_file, text_file)
-      VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, 'approved', $6, $7, $8, $9, $10)
       RETURNING *
     `;
     const packResult = await client.query(packQuery, [
