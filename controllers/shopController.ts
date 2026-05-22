@@ -1,6 +1,43 @@
 import { Request, Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import pool from '../config/database';
 import { AuthRequest } from '../middleware/auth';
+
+// Настройка multer для загрузки файлов
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(process.cwd(), 'uploads', 'shop');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024 // 500MB limit for archives
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow audio files, zip files, and text files
+    const allowedExtensions = ['.mp3', '.wav', '.zip', '.txt', '.pdf'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExtensions.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type'));
+    }
+  }
+});
+
+export { upload };
 
 // Получить все одобренные паки
 export const getPacks = async (req: Request, res: Response) => {
@@ -129,13 +166,25 @@ export const getPackById = async (req: Request, res: Response) => {
   }
 };
 
-// Создать новый пак
+// Создать новый пак с архивом
 export const createPack = async (req: AuthRequest, res: Response) => {
   const client = await pool.connect();
   
   try {
-    const { title, description, price, voice_tag, loopIds } = req.body;
+    const { title, description, price, voice_tag } = req.body;
     const userId = req.user!.id;
+
+    // Проверяем наличие архива
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    if (!files || !files['archive']) {
+      return res.status(400).json({ error: 'Archive file is required' });
+    }
+
+    const archiveFile = files['archive'][0];
+    const previewFile1 = files['preview1'] ? files['preview1'][0] : undefined;
+    const previewFile2 = files['preview2'] ? files['preview2'][0] : undefined;
+    const voiceTagFile = files['voiceTag'] ? files['voiceTag'][0] : undefined;
+    const textFile = files['textFile'] ? files['textFile'][0] : undefined;
 
     // Проверяем лимит на создание паков (3 в день)
     const todayPacksQuery = `
@@ -164,42 +213,32 @@ export const createPack = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Account must be at least 3 days old to create packs' });
     }
 
-    // Проверяем количество лупов (максимум 15)
-    if (!loopIds || loopIds.length === 0 || loopIds.length > 15) {
-      return res.status(400).json({ error: 'Pack must contain between 1 and 15 loops' });
-    }
-
-    // Проверяем что все лупы принадлежат пользователю
-    const loopsCheckQuery = `
-      SELECT COUNT(*) as count
-      FROM loops
-      WHERE id = ANY($1) AND user_id = $2
-    `;
-    const loopsCheckResult = await client.query(loopsCheckQuery, [loopIds, userId]);
-    const validLoopsCount = parseInt(loopsCheckResult.rows[0].count);
-
-    if (validLoopsCount !== loopIds.length) {
-      return res.status(403).json({ error: 'All loops must belong to you' });
+    // Проверяем что архив это zip файл
+    if (!archiveFile.originalname.toLowerCase().endsWith('.zip')) {
+      return res.status(400).json({ error: 'Archive must be a ZIP file' });
     }
 
     await client.query('BEGIN');
 
     // Создаем пак
     const packQuery = `
-      INSERT INTO sound_packs (title, description, price, user_id, voice_tag, status)
-      VALUES ($1, $2, $3, $4, $5, 'pending')
+      INSERT INTO sound_packs (title, description, price, user_id, voice_tag, status, archive_url, preview_url, preview_url_2, voice_tag_file, text_file)
+      VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10)
       RETURNING *
     `;
-    const packResult = await client.query(packQuery, [title, description, price, userId, voice_tag]);
+    const packResult = await client.query(packQuery, [
+      title, 
+      description, 
+      price, 
+      userId, 
+      voice_tag,
+      `/uploads/shop/${archiveFile.filename}`,
+      previewFile1 ? `/uploads/shop/${previewFile1.filename}` : null,
+      previewFile2 ? `/uploads/shop/${previewFile2.filename}` : null,
+      voiceTagFile ? `/uploads/shop/${voiceTagFile.filename}` : null,
+      textFile ? `/uploads/shop/${textFile.filename}` : null
+    ]);
     const pack = packResult.rows[0];
-
-    // Добавляем лупы в пак
-    for (const loopId of loopIds) {
-      await client.query(`
-        INSERT INTO pack_loops (pack_id, loop_id)
-        VALUES ($1, $2)
-      `, [pack.id, loopId]);
-    }
 
     await client.query('COMMIT');
 
@@ -457,6 +496,46 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error rating pack:', error);
     res.status(500).json({ error: 'Failed to rate pack' });
+  }
+};
+
+// Скачать купленный пак
+export const downloadPack = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    // Проверяем что пользователь купил этот пак
+    const orderQuery = `
+      SELECT sp.archive_url, sp.title
+      FROM orders o
+      JOIN sound_packs sp ON o.pack_id = sp.id
+      WHERE o.pack_id = $1 
+        AND o.buyer_id = $2 
+        AND o.status = 'completed'
+    `;
+    const orderResult = await pool.query(orderQuery, [id, userId]);
+
+    if (orderResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You must purchase this pack to download it' });
+    }
+
+    const pack = orderResult.rows[0];
+
+    if (!pack.archive_url) {
+      return res.status(404).json({ error: 'Archive file not found' });
+    }
+
+    const filePath = path.join(process.cwd(), pack.archive_url);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found on server' });
+    }
+
+    res.download(filePath, `${pack.title}.zip`);
+  } catch (error) {
+    console.error('Error downloading pack:', error);
+    res.status(500).json({ error: 'Failed to download pack' });
   }
 };
 

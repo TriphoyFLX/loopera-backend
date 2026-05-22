@@ -229,6 +229,8 @@ export const initDatabase = async () => {
         voice_tag_file VARCHAR(500),
         text_file VARCHAR(500),
         preview_url VARCHAR(500),
+        preview_url_2 VARCHAR(500),
+        archive_url VARCHAR(500),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         moderated_at TIMESTAMP,
@@ -237,7 +239,11 @@ export const initDatabase = async () => {
       )
     `);
 
-    // Таблица для лупов в паках
+    await pool.query(`
+      ALTER TABLE sound_packs 
+      ADD COLUMN IF NOT EXISTS preview_url_2 VARCHAR(500),
+      ADD COLUMN IF NOT EXISTS archive_url VARCHAR(500)
+    `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS pack_loops (
         id SERIAL PRIMARY KEY,

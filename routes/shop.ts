@@ -9,7 +9,9 @@ import {
   createWithdrawal,
   getUserPacks,
   ratePack,
-  reportPack
+  reportPack,
+  downloadPack,
+  upload
 } from '../controllers/shopController';
 
 const router = express.Router();
@@ -21,8 +23,15 @@ router.get('/:id', getPackById);
 // Защищенные роуты (требуют авторизации)
 router.use(authenticate);
 
-router.post('/', createPack);
+router.post('/', upload.fields([
+  { name: 'archive', maxCount: 1 },
+  { name: 'preview1', maxCount: 1 },
+  { name: 'preview2', maxCount: 1 },
+  { name: 'voiceTag', maxCount: 1 },
+  { name: 'textFile', maxCount: 1 }
+]), createPack);
 router.post('/:id/buy', buyPack);
+router.get('/:id/download', downloadPack);
 router.get('/balance/my', getUserBalance);
 router.post('/withdrawals', createWithdrawal);
 router.get('/my/packs', getUserPacks);
