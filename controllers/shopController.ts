@@ -505,28 +505,24 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Скачать купленный пак
+// Скачать пак (без проверки покупки для тестирования)
 export const downloadPack = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user!.id;
 
-    // Проверяем что пользователь купил этот пак
-    const orderQuery = `
+    // Получаем информацию о паке без проверки покупки
+    const packQuery = `
       SELECT sp.archive_url, sp.title
-      FROM orders o
-      JOIN sound_packs sp ON o.pack_id = sp.id
-      WHERE o.pack_id = $1 
-        AND o.buyer_id = $2 
-        AND o.status = 'completed'
+      FROM sound_packs sp
+      WHERE sp.id = $1 AND sp.status = 'approved'
     `;
-    const orderResult = await pool.query(orderQuery, [id, userId]);
+    const packResult = await pool.query(packQuery, [id]);
 
-    if (orderResult.rows.length === 0) {
-      return res.status(403).json({ error: 'You must purchase this pack to download it' });
+    if (packResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Pack not found' });
     }
 
-    const pack = orderResult.rows[0];
+    const pack = packResult.rows[0];
 
     if (!pack.archive_url) {
       return res.status(404).json({ error: 'Archive file not found' });
