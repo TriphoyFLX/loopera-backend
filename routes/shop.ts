@@ -22,12 +22,12 @@ import {
 
 const router = express.Router();
 
+// Crypto Pay роуты (должны быть перед :id)
+router.post('/crypto/webhook', handleWebhook);
+
 // Публичные роуты
 router.get('/', getPacks);
 router.get('/:id', getPackById);
-
-// Webhook для Crypto Pay (публичный)
-router.post('/crypto/webhook', handleWebhook);
 
 // Защищенные роуты (требуют авторизации)
 router.use(authenticate);
@@ -47,7 +47,7 @@ router.get('/my/packs', getUserPacks);
 router.post('/:id/rate', ratePack);
 router.post('/:id/report', reportPack);
 
-// Crypto Pay роуты
+// Crypto Pay защищенные роуты
 router.post('/crypto/invoice', createInvoice);
 router.get('/crypto/invoice/:invoiceId', getInvoiceStatus);
 router.get('/crypto/payments', getUserPayments);
