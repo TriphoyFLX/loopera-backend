@@ -60,6 +60,8 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
 
     const invoiceResult = await response.json();
 
+    console.log('Crypto Pay response:', invoiceResult);
+
     if (invoiceResult.ok !== true) {
       throw new Error(invoiceResult.error || 'Failed to create invoice');
     }
