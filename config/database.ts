@@ -298,6 +298,33 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Таблица для платежей через Crypto Pay
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
+        invoice_id VARCHAR(100) UNIQUE NOT NULL,
+        amount DECIMAL(20,8) NOT NULL,
+        currency VARCHAR(10) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'expired')),
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_payments_pack_id ON payments(pack_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON payments(invoice_id);
+    `);
+
     // Таблица для рейтингов паков
     await pool.query(`
       CREATE TABLE IF NOT EXISTS pack_ratings (
