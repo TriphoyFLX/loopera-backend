@@ -325,6 +325,25 @@ export const initDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON payments(invoice_id);
     `);
 
+    // Таблица для купленных паков пользователей
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_packs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
+        purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, pack_id)
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_user_packs_user_id ON user_packs(user_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_user_packs_pack_id ON user_packs(pack_id);
+    `);
+
     // Таблица для рейтингов паков
     await pool.query(`
       CREATE TABLE IF NOT EXISTS pack_ratings (

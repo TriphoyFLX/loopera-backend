@@ -505,12 +505,24 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Скачать пак (без проверки покупки для тестирования)
+// Скачать пак (с проверкой покупки)
 export const downloadPack = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.user!.id;
 
-    // Получаем информацию о паке без проверки покупки
+    // Проверяем, купил ли пользователь этот пак
+    const purchaseCheckQuery = `
+      SELECT 1 FROM user_packs
+      WHERE user_id = $1 AND pack_id = $2
+    `;
+    const purchaseCheckResult = await pool.query(purchaseCheckQuery, [userId, id]);
+
+    if (purchaseCheckResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You must purchase the pack to download it' });
+    }
+
+    // Получаем информацию о паке
     const packQuery = `
       SELECT sp.archive_url, sp.title
       FROM sound_packs sp
