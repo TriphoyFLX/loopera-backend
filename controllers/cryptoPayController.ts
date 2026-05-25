@@ -43,8 +43,8 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       asset: 'USDT',
       amount: amount,
       description: `Purchase pack: ${pack.title}`,
-      paid_btn_name: 'Open',
-      paid_btn_url: `${process.env.FRONTEND_URL}/shop`,
+      paid_btn_name: 'openUrl',
+      paid_btn_url: `${process.env.FRONTEND_URL || 'https://loopera-lpr.vercel.app'}/shop`,
       allow_anonymous: false,
       expires_in: 3600 // 1 час
     };
