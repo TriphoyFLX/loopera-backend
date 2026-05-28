@@ -510,36 +510,19 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
 
-    console.log('=== getUserCreatedPacks START ===');
-    console.log('User ID:', userId);
-
-    // First check if user has any packs at all
-    const checkQuery = `
-      SELECT id, title, user_id, status, created_at
-      FROM sound_packs
-      WHERE user_id = $1
-    `;
-    const checkResult = await pool.query(checkQuery, [userId]);
-    console.log('All packs for user:', checkResult.rows.length, checkResult.rows);
+    console.log('getUserCreatedPacks called for userId:', userId);
 
     const query = `
-      SELECT sp.*,
-             COUNT(DISTINCT o.id) as purchase_count
-      FROM sound_packs sp
-      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'paid'
-      WHERE sp.user_id = $1
-      GROUP BY sp.id
-      ORDER BY sp.created_at DESC
+      SELECT * FROM sound_packs WHERE user_id = $1 ORDER BY created_at DESC
     `;
 
     const result = await pool.query(query, [userId]);
-    console.log('Found created packs:', result.rows.length, result.rows);
-    console.log('=== getUserCreatedPacks END ===');
+    console.log('Found packs:', result.rows.length);
 
     res.json({ packs: result.rows });
   } catch (error) {
-    console.error('Error getting user created packs:', error);
-    res.status(500).json({ error: 'Failed to get user created packs' });
+    console.error('Error in getUserCreatedPacks:', error);
+    res.status(500).json({ error: 'Failed to get user created packs', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 };
 
