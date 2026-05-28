@@ -457,16 +457,12 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
     const userId = req.user!.userId;
 
     const query = `
-      SELECT sp.*,
-             COALESCE(AVG(pr.rating), 0) as avg_rating,
-             COUNT(pr.id) as rating_count,
+      SELECT DISTINCT ON (sp.id) sp.*,
              o.created_at as purchase_date
       FROM orders o
       JOIN sound_packs sp ON o.pack_id = sp.id
-      LEFT JOIN pack_ratings pr ON sp.id = pr.pack_id
       WHERE o.buyer_id = $1 AND o.status = 'paid'
-      GROUP BY sp.id, o.created_at
-      ORDER BY o.created_at DESC
+      ORDER BY sp.id, o.created_at DESC
     `;
 
     const result = await pool.query(query, [userId]);
