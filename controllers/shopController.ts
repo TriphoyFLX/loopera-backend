@@ -489,6 +489,14 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
 
     const result = await pool.query(query, [userId]);
     console.log('Found purchased packs:', result.rows.length, result.rows);
+    if (result.rows.length > 0) {
+      console.log('First pack seller info:', {
+        seller_username: result.rows[0].seller_username,
+        seller_hashtag: result.rows[0].seller_hashtag,
+        pack_id: result.rows[0].id,
+        pack_user_id: result.rows[0].user_id
+      });
+    }
 
     res.json({ packs: result.rows });
   } catch (error) {
