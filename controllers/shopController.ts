@@ -351,12 +351,12 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
       WHERE user_id = $2
     `, [pack.price, buyerId]);
 
-    // Добавляем деньги продавцу в pending_balance
+    // Добавляем деньги продавцу в available_balance
     await client.query(`
-      INSERT INTO user_balance (user_id, pending_balance, total_earned)
+      INSERT INTO user_balance (user_id, available_balance, total_earned)
       VALUES ($1, $2, $2)
       ON CONFLICT (user_id) DO UPDATE SET
-        pending_balance = user_balance.pending_balance + $2,
+        available_balance = user_balance.available_balance + $2,
         total_earned = user_balance.total_earned + $2,
         updated_at = CURRENT_TIMESTAMP
     `, [pack.user_id, sellerEarnings]);
