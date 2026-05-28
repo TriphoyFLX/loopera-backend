@@ -455,30 +455,22 @@ export const createWithdrawal = async (req: AuthRequest, res: Response) => {
 export const getUserPacks = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
-    const { status } = req.query;
 
-    let query = `
+    const query = `
       SELECT sp.*,
              COALESCE(AVG(pr.rating), 0) as avg_rating,
              COUNT(pr.id) as rating_count,
-             COUNT(DISTINCT o.id) as sales_count
-      FROM sound_packs sp
+             o.created_at as purchase_date
+      FROM orders o
+      JOIN sound_packs sp ON o.pack_id = sp.id
       LEFT JOIN pack_ratings pr ON sp.id = pr.pack_id
-      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'completed'
-      WHERE sp.user_id = $1
+      WHERE o.buyer_id = $1 AND o.status = 'paid'
+      GROUP BY sp.id, o.created_at
+      ORDER BY o.created_at DESC
     `;
 
-    const params: any[] = [userId];
-
-    if (status) {
-      query += ` AND sp.status = $2`;
-      params.push(status);
-    }
-
-    query += ` GROUP BY sp.id ORDER BY sp.created_at DESC`;
-
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    const result = await pool.query(query, [userId]);
+    res.json({ packs: result.rows });
   } catch (error) {
     console.error('Error getting user packs:', error);
     res.status(500).json({ error: 'Failed to get user packs' });
