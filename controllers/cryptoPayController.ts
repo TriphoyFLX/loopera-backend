@@ -74,7 +74,7 @@ export const createTopUpInvoice = async (req: AuthRequest, res: Response) => {
         pay_url: invoice.pay_url,
         amount: amount,
         currency: 'coins',
-        expires_at: new Date(invoice.expires * 1000).toISOString()
+        expires_at: invoice.expiration_date || invoice.expires
       }
     });
 
