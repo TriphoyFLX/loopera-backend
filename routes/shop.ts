@@ -31,16 +31,21 @@ const router = express.Router();
 // Crypto Pay роуты (должны быть перед :id)
 router.post('/crypto/webhook', handleWebhook);
 
-// История транзакций (должна быть перед :id)
-router.get('/history', authenticate, getTransactionHistory);
-
 // Публичные роуты
 router.get('/', getPacks);
-router.get('/:id', getPackById);
 
 // Защищенные роуты (требуют авторизации)
 router.use(authenticate);
 
+// Маршруты с префиксом /my (должны быть перед :id)
+router.get('/my/packs', getUserPacks);
+router.get('/my/created-packs', getUserCreatedPacks);
+router.get('/balance/my', getUserBalance);
+
+// История транзакций (должна быть перед :id)
+router.get('/history', getTransactionHistory);
+
+// POST роуты
 router.post('/', upload.fields([
   { name: 'archive', maxCount: 1 },
   { name: 'preview1', maxCount: 1 },
@@ -49,13 +54,15 @@ router.post('/', upload.fields([
   { name: 'textFile', maxCount: 1 }
 ]), createPack);
 router.post('/:id/buy', buyPack);
-router.get('/:id/download', downloadPack);
-router.get('/balance/my', getUserBalance);
-router.post('/withdrawals', createWithdrawal);
-router.get('/my/packs', getUserPacks);
-router.get('/my/created-packs', getUserCreatedPacks);
 router.post('/:id/rate', ratePack);
 router.post('/:id/report', reportPack);
+router.post('/withdrawals', createWithdrawal);
+
+// GET роуты с динамическими параметрами (должны быть после статических)
+router.get('/:id/download', downloadPack);
+
+// Динамические роуты (всегда в конце)
+router.get('/:id', getPackById);
 
 // Crypto Pay защищенные роуты
 router.post('/crypto/topup', createTopUpInvoice);
