@@ -210,6 +210,8 @@ export const createPackWithFiles = async (req: AuthRequest, res: Response) => {
     const userId = req.user!.userId;
 
     // Проверяем лимит на создание паков (3 в день)
+    // Проверяем лимит на создание паков (отключено для тестирования)
+    /*
     const todayPacksQuery = `
       SELECT COUNT(*) as count
       FROM sound_packs
@@ -221,6 +223,7 @@ export const createPackWithFiles = async (req: AuthRequest, res: Response) => {
     if (todayPacksCount >= 3) {
       return res.status(429).json({ error: 'Daily pack creation limit exceeded' });
     }
+    */
 
     // Проверяем возраст аккаунта (минимум 3 дня)
     const userQuery = `
