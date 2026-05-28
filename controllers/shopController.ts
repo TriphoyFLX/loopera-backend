@@ -175,6 +175,11 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     const { title, description, price, voice_tag } = req.body;
     const userId = req.user!.userId;
 
+    // Проверяем минимальную цену пака
+    if (!price || price < 400) {
+      return res.status(400).json({ error: 'Minimum pack price is 400 coins' });
+    }
+
     // Проверяем наличие архива
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     if (!files || !files['archive']) {

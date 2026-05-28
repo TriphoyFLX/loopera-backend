@@ -18,8 +18,8 @@ export const createTopUpInvoice = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (!amount || amount < 1) {
-      return res.status(400).json({ error: 'Amount must be at least 1 ruble' });
+    if (!amount || amount < 200) {
+      return res.status(400).json({ error: 'Minimum top-up amount is 200 coins' });
     }
 
     // Создаем invoice через Crypto Pay API
