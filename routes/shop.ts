@@ -15,7 +15,8 @@ import {
   manualCreditBalance,
   getBalanceByTelegramId,
   manualDebitBalance,
-  searchUsers
+  searchUsers,
+  getTransactionHistory
 } from '../controllers/shopController';
 import {
   getInvoiceStatus,
@@ -60,6 +61,9 @@ router.get('/crypto/orders', getUserPayments);
 router.post('/admin/credit-balance', manualCreditBalance);
 router.post('/admin/debit-balance', manualDebitBalance);
 router.get('/admin/search-users', searchUsers);
+
+// История транзакций
+router.get('/transactions', getTransactionHistory);
 
 // Публичный роут для получения баланса по Telegram ID
 router.get('/balance/telegram/:telegram_id', getBalanceByTelegramId);

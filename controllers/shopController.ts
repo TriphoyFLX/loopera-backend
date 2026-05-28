@@ -477,6 +477,72 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Получить историю транзакций
+export const getTransactionHistory = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+
+    const query = `
+      SELECT 
+        'purchase' as type,
+        o.created_at,
+        o.amount,
+        o.currency,
+        sp.title as description,
+        o.invoice_id
+      FROM orders o
+      JOIN sound_packs sp ON o.pack_id = sp.id
+      WHERE o.buyer_id = $1 AND o.status = 'paid'
+      
+      UNION ALL
+      
+      SELECT 
+        'sale' as type,
+        o.created_at,
+        o.seller_earnings as amount,
+        o.currency,
+        sp.title as description,
+        o.invoice_id
+      FROM orders o
+      JOIN sound_packs sp ON o.pack_id = sp.id
+      WHERE o.seller_id = $1 AND o.status = 'paid'
+      
+      UNION ALL
+      
+      SELECT 
+        'topup' as type,
+        t.created_at,
+        t.amount,
+        t.currency,
+        'Пополнение баланса' as description,
+        t.invoice_id
+      FROM top_ups t
+      WHERE t.user_id = $1 AND t.status = 'completed'
+      
+      UNION ALL
+      
+      SELECT 
+        'withdrawal' as type,
+        w.created_at,
+        w.amount,
+        w.currency,
+        'Вывод средств' as description,
+        w.id::text as invoice_id
+      FROM withdrawals w
+      WHERE w.user_id = $1
+      
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+
+    const result = await pool.query(query, [userId]);
+    res.json({ transactions: result.rows });
+  } catch (error) {
+    console.error('Error getting transaction history:', error);
+    res.status(500).json({ error: 'Failed to get transaction history' });
+  }
+};
+
 // Добавить рейтинг паку
 export const ratePack = async (req: AuthRequest, res: Response) => {
   try {
