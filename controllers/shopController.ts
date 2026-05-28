@@ -201,7 +201,7 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     const todayPacksResult = await client.query(todayPacksQuery, [userId]);
     const todayPacksCount = parseInt(todayPacksResult.rows[0].count);
 
-    if (todayPacksCount >= 3) {
+    if (todayPacksCount >= 10) {
       return res.status(429).json({ error: 'Daily pack creation limit exceeded' });
     }
 
