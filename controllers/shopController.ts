@@ -264,7 +264,7 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
 
   try {
     const { id } = req.params;
-    const buyerId = req.user!.id;
+    const buyerId = req.user!.userId;
 
     console.log('Buy pack attempt - Pack ID:', id, 'Buyer ID:', buyerId);
 
