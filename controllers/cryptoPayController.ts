@@ -27,8 +27,6 @@ export const createTopUpInvoice = async (req: AuthRequest, res: Response) => {
       asset: 'USDT',
       amount: amount / 100, // Convert rubles to USDT (approximate rate)
       description: `Top up ${amount} coins`,
-      paid_btn_name: 'openBot',
-      paid_btn_url: `${process.env.FRONTEND_URL || 'https://loopera-lpr.vercel.app'}/profile`,
       allow_anonymous: false,
       expires_in: 3600 // 1 час
     };
