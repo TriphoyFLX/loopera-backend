@@ -31,7 +31,7 @@ const router = express.Router();
 router.post('/crypto/webhook', handleWebhook);
 
 // История транзакций (должна быть перед :id)
-router.get('/transactions', authenticate, getTransactionHistory);
+router.get('/history', authenticate, getTransactionHistory);
 
 // Публичные роуты
 router.get('/', getPacks);
