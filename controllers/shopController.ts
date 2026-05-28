@@ -665,8 +665,8 @@ export const manualCreditBalance = async (req: AuthRequest, res: Response) => {
 
       // Записываем транзакцию
       await client.query(
-        `INSERT INTO top_ups (user_id, amount, currency, status)
-         VALUES ($1, $2, 'coins', 'completed')`,
+        `INSERT INTO top_ups (user_id, invoice_id, amount, currency, status)
+         VALUES ($1, 'manual', $2, 'coins', 'completed')`,
         [userId, amount]
       );
 
