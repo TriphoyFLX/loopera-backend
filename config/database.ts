@@ -300,6 +300,11 @@ export const initDatabase = async () => {
 
     // Удаляем старую таблицу payments если она существует (миграция на orders)
     await pool.query(`DROP TABLE IF EXISTS payments CASCADE`);
+    
+    // Удаляем старые индексы если они существуют
+    await pool.query(`DROP INDEX IF EXISTS idx_payments_user_id`);
+    await pool.query(`DROP INDEX IF EXISTS idx_payments_pack_id`);
+    await pool.query(`DROP INDEX IF EXISTS idx_payments_invoice_id`);
 
     // Таблица для заказов (orders) вместо payments
     await pool.query(`
