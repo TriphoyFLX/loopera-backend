@@ -362,10 +362,11 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     `, [pack.user_id, sellerEarnings]);
 
     // Создаем заказ
+    const invoiceId = `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     await client.query(`
       INSERT INTO orders (pack_id, buyer_id, seller_id, invoice_id, amount, currency, commission, seller_earnings, status)
-      VALUES ($1, $2, $3, 'manual', $4, 'coins', $5, $6, 'paid')
-    `, [id, buyerId, pack.user_id, pack.price, commission, sellerEarnings]);
+      VALUES ($1, $2, $3, $4, $5, 'coins', $6, $7, 'paid')
+    `, [id, buyerId, pack.user_id, invoiceId, pack.price, commission, sellerEarnings]);
 
     await client.query('COMMIT');
 
