@@ -192,7 +192,8 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     const voiceTagFile = files['voiceTag'] ? files['voiceTag'][0] : undefined;
     const textFile = files['textFile'] ? files['textFile'][0] : undefined;
 
-    // Проверяем лимит на создание паков (3 в день)
+    // Проверяем лимит на создание паков (отключено для тестирования)
+    /*
     const todayPacksQuery = `
       SELECT COUNT(*) as count
       FROM sound_packs
@@ -204,6 +205,7 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     if (todayPacksCount >= 10) {
       return res.status(429).json({ error: 'Daily pack creation limit exceeded' });
     }
+    */
 
     // Проверяем возраст аккаунта (минимум 3 дня)
     const userQuery = `
