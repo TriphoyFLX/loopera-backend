@@ -229,7 +229,7 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     // Создаем пак
     const packQuery = `
       INSERT INTO sound_packs (title, description, price, user_id, voice_tag, status, archive_url, preview_url, preview_url_2, voice_tag_file, text_file)
-      VALUES ($1, $2, $3, $4, $5, 'approved', $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10)
       RETURNING *
     `;
     const packResult = await client.query(packQuery, [
@@ -699,6 +699,36 @@ export const getBalanceByTelegramId = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching balance by telegram ID:', error);
     res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+};
+
+// Поиск пользователей по username для автодополнения
+export const searchUsers = async (req: AuthRequest, res: Response) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || typeof q !== 'string') {
+      return res.status(400).json({ error: 'Query parameter is required' });
+    }
+
+    // Проверяем что это админ
+    if (req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const query = `
+      SELECT id, username, email
+      FROM users
+      WHERE username ILIKE $1
+      ORDER BY username
+      LIMIT 10
+    `;
+    const result = await pool.query(query, [`%${q}%`]);
+
+    res.json({ users: result.rows });
+  } catch (error) {
+    console.error('Error searching users:', error);
+    res.status(500).json({ error: 'Failed to search users' });
   }
 };
 
