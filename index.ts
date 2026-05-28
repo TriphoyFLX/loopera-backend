@@ -19,7 +19,7 @@ import likeRoutes from './routes/likes.js';
 import topUsersRoutes from './routes/topUsers.js';
 import searchRoutes from './routes/search.js';
 import adminRoutes from './routes/admin.js';
-import shopRoutes from './routes/shop.js';
+import shopRoutes from './routes/shopNew.js';
 import adminShopRoutes from './routes/adminShop.js';
 import packUploadRoutes from './routes/packUpload.js';
 import testUploadRoutes from './routes/testUpload.js';
