@@ -170,13 +170,21 @@ export const getPackById = async (req: Request, res: Response) => {
 // Создать новый пак с архивом
 export const createPack = async (req: AuthRequest, res: Response) => {
   const client = await pool.connect();
-  
+
   try {
+    console.log('=== createPack called ===');
     const { title, description, price, voice_tag } = req.body;
     const userId = req.user!.userId;
+    console.log('User ID:', userId, 'Title:', title, 'Price:', price);
+
+    if (!userId) {
+      console.log('No user ID found');
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
 
     // Проверяем минимальную цену пака
     if (!price || price < 400) {
+      console.log('Price too low:', price);
       return res.status(400).json({ error: 'Minimum pack price is 400 coins' });
     }
 
