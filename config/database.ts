@@ -305,10 +305,13 @@ export const initDatabase = async () => {
     await pool.query(`DROP INDEX IF EXISTS idx_payments_user_id`);
     await pool.query(`DROP INDEX IF EXISTS idx_payments_pack_id`);
     await pool.query(`DROP INDEX IF EXISTS idx_payments_invoice_id`);
+    
+    // Удаляем таблицу orders если она существует для чистой миграции
+    await pool.query(`DROP TABLE IF EXISTS orders CASCADE`);
 
     // Таблица для заказов (orders) вместо payments
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS orders (
+      CREATE TABLE orders (
         id SERIAL PRIMARY KEY,
         buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
