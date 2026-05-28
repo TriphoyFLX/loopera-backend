@@ -25,9 +25,7 @@ export const createTopUpInvoice = async (req: AuthRequest, res: Response) => {
     // Создаем invoice через Crypto Pay API
     const invoiceData = {
       amount: amount / 100, // Convert rubles to USDT (approximate rate)
-      description: `Top up ${amount} coins`,
-      allow_anonymous: false,
-      expires_in: 3600 // 1 час
+      description: `Top up ${amount} coins`
     };
 
     const response = await fetch(`${CRYPTO_PAY_API_URL}/createInvoice`, {
