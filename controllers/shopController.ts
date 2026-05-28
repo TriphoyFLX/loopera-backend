@@ -368,6 +368,13 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
       VALUES ($1, $2, $3, $4, $5, 'coins', $6, $7, 'paid')
     `, [id, buyerId, pack.user_id, invoiceId, pack.price, commission, sellerEarnings]);
 
+    // Добавляем пак в список купленных паков пользователя
+    await client.query(`
+      INSERT INTO user_packs (user_id, pack_id)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id, pack_id) DO NOTHING
+    `, [buyerId, id]);
+
     await client.query('COMMIT');
 
     res.json({ message: 'Pack purchased successfully' });
@@ -589,8 +596,8 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
 
     // Проверяем, купил ли пользователь этот пак
     const purchaseCheckQuery = `
-      SELECT 1 FROM user_packs
-      WHERE user_id = $1 AND pack_id = $2
+      SELECT 1 FROM orders
+      WHERE buyer_id = $1 AND pack_id = $2 AND status = 'paid'
     `;
     const purchaseCheckResult = await pool.query(purchaseCheckQuery, [userId, id]);
 
@@ -617,7 +624,7 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
     }
 
     const filePath = path.join(process.cwd(), pack.archive_url);
-    
+
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found on server' });
     }
