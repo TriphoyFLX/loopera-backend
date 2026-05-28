@@ -79,4 +79,10 @@ router.get('/admin/search-users', searchUsers);
 // Публичный роут для получения баланса по Telegram ID
 router.get('/balance/telegram/:telegram_id', getBalanceByTelegramId);
 
+// Debug route to log all unmatched requests
+router.use((req, res, next) => {
+  console.log('Unmatched route:', req.method, req.path, req.originalUrl);
+  next();
+});
+
 export default router;
