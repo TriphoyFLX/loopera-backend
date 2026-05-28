@@ -697,10 +697,93 @@ export const getBalanceByTelegramId = async (req: Request, res: Response) => {
       pending_balance: result.rows[0].pending_balance
     });
   } catch (error) {
-    console.error('Error getting balance by telegram ID:', error);
-    res.status(500).json({ error: 'Failed to get balance' });
+    console.error('Error fetching balance by telegram ID:', error);
+    res.status(500).json({ error: 'Failed to fetch balance' });
   }
 };
+
+// Ручное списание баланса с комиссией (для вывода средств)
+export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
+  try {
+    const { username, amount, currency } = req.body;
+    const adminId = req.user!.id;
+
+    // Проверяем что это админ
+    if (req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!username || !amount) {
+      return res.status(400).json({ error: 'username and amount are required' });
+    }
+
+    const withdrawalAmount = parseInt(amount);
+    const commission = Math.round(withdrawalAmount * 0.2); // 20% commission
+    const netAmount = withdrawalAmount - commission;
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Находим пользователя по username
+      const userCheck = await client.query(
+        'SELECT id, available_balance FROM users u LEFT JOIN user_balance ub ON u.id = ub.user_id WHERE u.username = $1',
+        [username]
+      );
+
+      if (userCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const userId = userCheck.rows[0].id;
+      const currentBalance = userCheck.rows[0].available_balance || 0;
+
+      // Проверяем достаточно ли средств
+      if (currentBalance < withdrawalAmount) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Insufficient balance' });
+      }
+
+      // Списываем баланс
+      await client.query(
+        `UPDATE user_balance
+         SET available_balance = available_balance - $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $2`,
+        [withdrawalAmount, userId]
+      );
+
+      // Записываем транзакцию вывода с указанием комиссии
+      await client.query(
+        `INSERT INTO withdrawals (user_id, amount, status, processed_by, processed_at)
+         VALUES ($1, $2, 'completed', $3, CURRENT_TIMESTAMP)`,
+        [userId, netAmount, adminId]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        success: true,
+        debited_amount: withdrawalAmount,
+        commission: commission,
+        net_amount: netAmount,
+        currency: currency || 'RUB',
+        username
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error manually debiting balance:', error);
+    res.status(500).json({ error: 'Failed to manually debit balance' });
+  }
+};
+
 export const reportPack = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
