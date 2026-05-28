@@ -32,6 +32,7 @@ router.post('/crypto/webhook', handleWebhook);
 
 // Публичные роуты
 router.get('/', getPacks);
+router.get('/transactions', authenticate, getTransactionHistory);
 router.get('/:id', getPackById);
 
 // Защищенные роуты (требуют авторизации)
@@ -44,7 +45,6 @@ router.post('/', upload.fields([
   { name: 'voiceTag', maxCount: 1 },
   { name: 'textFile', maxCount: 1 }
 ]), createPack);
-router.get('/transactions', getTransactionHistory);
 router.post('/:id/buy', buyPack);
 router.get('/:id/download', downloadPack);
 router.get('/balance/my', getUserBalance);
