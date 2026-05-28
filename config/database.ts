@@ -298,6 +298,9 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Удаляем старую таблицу payments если она существует (миграция на orders)
+    await pool.query(`DROP TABLE IF EXISTS payments CASCADE`);
+
     // Таблица для заказов (orders) вместо payments
     await pool.query(`
       CREATE TABLE IF NOT EXISTS orders (
