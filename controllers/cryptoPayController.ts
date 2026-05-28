@@ -37,6 +37,11 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
 
     const pack = packResult.rows[0];
     const amount = pack.price || 10; // Цена в USDT
+    const sellerId = pack.user_id;
+    
+    // Рассчитываем комиссию (20% платформе, 80% продавцу)
+    const commission = amount * 0.20;
+    const sellerEarnings = amount - commission;
 
     // Создаем invoice через Crypto Pay API
     const invoiceData = {
@@ -68,18 +73,21 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
 
     const invoice = invoiceResult.result;
 
-    // Сохраняем информацию о платеже в базе данных
-    const paymentQuery = `
-      INSERT INTO payments (user_id, pack_id, invoice_id, amount, currency, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+    // Сохраняем информацию о заказе в базе данных
+    const orderQuery = `
+      INSERT INTO orders (buyer_id, pack_id, seller_id, invoice_id, amount, currency, commission, seller_earnings, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', NOW())
       RETURNING id
     `;
-    const paymentResult = await client.query(paymentQuery, [
+    const orderResult = await client.query(orderQuery, [
       userId,
       packId,
+      sellerId,
       invoice.invoice_id,
       amount,
-      'USDT'
+      'USDT',
+      commission,
+      sellerEarnings
     ]);
 
     await client.query('COMMIT');
@@ -157,35 +165,35 @@ export const handleWebhook = async (req: Request, res: Response) => {
       const amount = payload.amount;
       const currency = payload.asset;
 
-      // Проверяем, существует ли такой платеж в базе
-      const paymentQuery = `
-        SELECT id, user_id, pack_id, status
-        FROM payments
+      // Проверяем, существует ли такой заказ в базе
+      const orderQuery = `
+        SELECT id, buyer_id, seller_id, pack_id, seller_earnings, status
+        FROM orders
         WHERE invoice_id = $1
       `;
-      const paymentResult = await client.query(paymentQuery, [invoiceId]);
+      const orderResult = await client.query(orderQuery, [invoiceId]);
 
-      if (paymentResult.rows.length === 0) {
-        console.log('Payment not found in database:', invoiceId);
+      if (orderResult.rows.length === 0) {
+        console.log('Order not found in database:', invoiceId);
         return res.json({ ok: true });
       }
 
-      const payment = paymentResult.rows[0];
+      const order = orderResult.rows[0];
 
-      // Если платеж уже обработан
-      if (payment.status === 'completed') {
+      // Если заказ уже обработан
+      if (order.status === 'paid') {
         return res.json({ ok: true });
       }
 
-      // Обновляем статус платежа
       await client.query('BEGIN');
       
-      const updatePaymentQuery = `
-        UPDATE payments
-        SET status = 'completed', paid_at = NOW()
+      // Обновляем статус заказа
+      const updateOrderQuery = `
+        UPDATE orders
+        SET status = 'paid', paid_at = NOW()
         WHERE id = $1
       `;
-      await client.query(updatePaymentQuery, [payment.id]);
+      await client.query(updateOrderQuery, [order.id]);
 
       // Добавляем запись о покупке пака
       const purchaseQuery = `
@@ -193,11 +201,22 @@ export const handleWebhook = async (req: Request, res: Response) => {
         VALUES ($1, $2, NOW())
         ON CONFLICT (user_id, pack_id) DO NOTHING
       `;
-      await client.query(purchaseQuery, [payment.user_id, payment.pack_id]);
+      await client.query(purchaseQuery, [order.buyer_id, order.pack_id]);
+
+      // Начисляем баланс продавцу (в internal balance)
+      const balanceQuery = `
+        INSERT INTO user_balance (user_id, available_balance, total_earned, created_at, updated_at)
+        VALUES ($1, $2, $2, NOW(), NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+          available_balance = user_balance.available_balance + $2,
+          total_earned = user_balance.total_earned + $2,
+          updated_at = NOW()
+      `;
+      await client.query(balanceQuery, [order.seller_id, order.seller_earnings]);
 
       await client.query('COMMIT');
 
-      console.log('Payment completed:', invoiceId);
+      console.log('Order paid:', invoiceId, 'Seller credited:', order.seller_earnings);
     }
 
     res.json({ ok: true });
@@ -211,31 +230,28 @@ export const handleWebhook = async (req: Request, res: Response) => {
   }
 };
 
-// Получить платежи пользователя
+// Получить заказы пользователя
 export const getUserPayments = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const userId = req.user!.userId;
 
     const query = `
-      SELECT p.*, sp.title as pack_title
-      FROM payments p
-      LEFT JOIN sound_packs sp ON p.pack_id = sp.id
-      WHERE p.user_id = $1
-      ORDER BY p.created_at DESC
+      SELECT o.*, sp.title as pack_title, u.username as seller_username
+      FROM orders o
+      LEFT JOIN sound_packs sp ON o.pack_id = sp.id
+      LEFT JOIN users u ON o.seller_id = u.id
+      WHERE o.buyer_id = $1
+      ORDER BY o.created_at DESC
     `;
     const result = await pool.query(query, [userId]);
 
     res.json({
       success: true,
-      payments: result.rows
+      orders: result.rows
     });
 
   } catch (error) {
-    console.error('Error getting user payments:', error);
-    res.status(500).json({ error: 'Failed to get payments' });
+    console.error('Error getting user orders:', error);
+    res.status(500).json({ error: 'Failed to get orders' });
   }
 };

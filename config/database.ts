@@ -298,31 +298,42 @@ export const initDatabase = async () => {
       )
     `);
 
-    // Таблица для платежей через Crypto Pay
+    // Таблица для заказов (orders) вместо payments
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS payments (
+      CREATE TABLE IF NOT EXISTS orders (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
+        seller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         invoice_id VARCHAR(100) UNIQUE NOT NULL,
         amount DECIMAL(20,8) NOT NULL,
         currency VARCHAR(10) NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'expired')),
+        commission DECIMAL(20,8) NOT NULL,
+        seller_earnings DECIMAL(20,8) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'cancelled')),
         paid_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
+      CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON orders(buyer_id);
     `);
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_payments_pack_id ON payments(pack_id);
+      CREATE INDEX IF NOT EXISTS idx_orders_pack_id ON orders(pack_id);
     `);
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON payments(invoice_id);
+      CREATE INDEX IF NOT EXISTS idx_orders_seller_id ON orders(seller_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_invoice_id ON orders(invoice_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
     `);
 
     // Таблица для купленных паков пользователей

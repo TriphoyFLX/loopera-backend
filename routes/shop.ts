@@ -50,6 +50,6 @@ router.post('/:id/report', reportPack);
 // Crypto Pay защищенные роуты
 router.post('/crypto/invoice', createInvoice);
 router.get('/crypto/invoice/:invoiceId', getInvoiceStatus);
-router.get('/crypto/payments', getUserPayments);
+router.get('/crypto/orders', getUserPayments);
 
 export default router;
