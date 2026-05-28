@@ -504,6 +504,15 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
 
     console.log('Getting created packs for user:', userId);
 
+    // First check if user has any packs at all
+    const checkQuery = `
+      SELECT id, title, user_id, status, created_at
+      FROM sound_packs
+      WHERE user_id = $1
+    `;
+    const checkResult = await pool.query(checkQuery, [userId]);
+    console.log('All packs for user:', checkResult.rows.length, checkResult.rows);
+
     const query = `
       SELECT sp.*,
              COUNT(DISTINCT o.id) as purchase_count
