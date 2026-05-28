@@ -510,7 +510,8 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
 
-    console.log('Getting created packs for user:', userId);
+    console.log('=== getUserCreatedPacks START ===');
+    console.log('User ID:', userId);
 
     // First check if user has any packs at all
     const checkQuery = `
@@ -533,6 +534,7 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
 
     const result = await pool.query(query, [userId]);
     console.log('Found created packs:', result.rows.length, result.rows);
+    console.log('=== getUserCreatedPacks END ===');
 
     res.json({ packs: result.rows });
   } catch (error) {
