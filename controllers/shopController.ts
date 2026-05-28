@@ -363,8 +363,8 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
 
     // Создаем заказ
     await client.query(`
-      INSERT INTO orders (pack_id, buyer_id, seller_id, price, commission, seller_earnings)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO orders (pack_id, buyer_id, seller_id, invoice_id, amount, currency, commission, seller_earnings, status)
+      VALUES ($1, $2, $3, 'manual', $4, 'coins', $5, $6, 'paid')
     `, [id, buyerId, pack.user_id, pack.price, commission, sellerEarnings]);
 
     await client.query('COMMIT');
@@ -416,7 +416,7 @@ export const getUserBalance = async (req: AuthRequest, res: Response) => {
 export const createWithdrawal = async (req: AuthRequest, res: Response) => {
   try {
     const { amount, phone, bank } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     // Проверяем минимальную сумму вывода
     if (amount < 1000) {
@@ -453,7 +453,7 @@ export const createWithdrawal = async (req: AuthRequest, res: Response) => {
 // Получить паки пользователя
 export const getUserPacks = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { status } = req.query;
 
     let query = `
@@ -489,7 +489,7 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { rating, review } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     // Проверяем что пользователь купил пак
     const purchaseCheckQuery = `
@@ -526,7 +526,7 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
 export const downloadPack = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     // Проверяем, купил ли пользователь этот пак
     const purchaseCheckQuery = `
@@ -632,7 +632,7 @@ export const creditBalance = async (req: Request, res: Response) => {
 export const manualCreditBalance = async (req: AuthRequest, res: Response) => {
   try {
     const { username, amount } = req.body;
-    const adminId = req.user!.id;
+    const adminId = req.user!.userId;
 
     // Проверяем что это админ
     if (req.user!.role !== 'admin') {
@@ -753,7 +753,7 @@ export const searchUsers = async (req: AuthRequest, res: Response) => {
 export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
   try {
     const { username, amount, currency } = req.body;
-    const adminId = req.user!.id;
+    const adminId = req.user!.userId;
 
     // Проверяем что это админ
     if (req.user!.role !== 'admin') {
@@ -835,7 +835,7 @@ export const reportPack = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { reason, description } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     const reportQuery = `
       INSERT INTO reports (reporter_id, pack_id, reason, description)
