@@ -493,6 +493,33 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Получить паки созданные пользователем
+export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+
+    console.log('Getting created packs for user:', userId);
+
+    const query = `
+      SELECT sp.*,
+             COUNT(DISTINCT o.id) as purchase_count
+      FROM sound_packs sp
+      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'paid'
+      WHERE sp.user_id = $1
+      GROUP BY sp.id
+      ORDER BY sp.created_at DESC
+    `;
+
+    const result = await pool.query(query, [userId]);
+    console.log('Found created packs:', result.rows.length, result.rows);
+
+    res.json({ packs: result.rows });
+  } catch (error) {
+    console.error('Error getting user created packs:', error);
+    res.status(500).json({ error: 'Failed to get user created packs' });
+  }
+};
+
 // Получить историю транзакций
 export const getTransactionHistory = async (req: AuthRequest, res: Response) => {
   try {

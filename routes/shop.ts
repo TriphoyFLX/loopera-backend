@@ -8,6 +8,7 @@ import {
   getUserBalance,
   createWithdrawal,
   getUserPacks,
+  getUserCreatedPacks,
   ratePack,
   reportPack,
   downloadPack,
@@ -52,6 +53,7 @@ router.get('/:id/download', downloadPack);
 router.get('/balance/my', getUserBalance);
 router.post('/withdrawals', createWithdrawal);
 router.get('/my/packs', getUserPacks);
+router.get('/my/created-packs', getUserCreatedPacks);
 router.post('/:id/rate', ratePack);
 router.post('/:id/report', reportPack);
 
