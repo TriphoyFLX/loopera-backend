@@ -489,8 +489,10 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
   try {
     const userId = req.user!.userId;
 
+    console.log('Getting transaction history for user:', userId);
+
     const query = `
-      SELECT 
+      SELECT
         'purchase' as type,
         o.created_at,
         o.amount,
@@ -500,10 +502,10 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
       FROM orders o
       JOIN sound_packs sp ON o.pack_id = sp.id
       WHERE o.buyer_id = $1 AND o.status = 'paid'
-      
+
       UNION ALL
-      
-      SELECT 
+
+      SELECT
         'sale' as type,
         o.created_at,
         o.seller_earnings as amount,
@@ -513,10 +515,10 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
       FROM orders o
       JOIN sound_packs sp ON o.pack_id = sp.id
       WHERE o.seller_id = $1 AND o.status = 'paid'
-      
+
       UNION ALL
-      
-      SELECT 
+
+      SELECT
         'topup' as type,
         t.created_at,
         t.amount,
@@ -525,10 +527,10 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
         t.invoice_id
       FROM top_ups t
       WHERE t.user_id = $1 AND t.status = 'completed'
-      
+
       UNION ALL
-      
-      SELECT 
+
+      SELECT
         'withdrawal' as type,
         w.created_at,
         w.amount,
@@ -537,12 +539,14 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
         w.id::text as invoice_id
       FROM withdrawals w
       WHERE w.user_id = $1
-      
+
       ORDER BY created_at DESC
       LIMIT 50
     `;
 
     const result = await pool.query(query, [userId]);
+    console.log('Found transactions:', result.rows.length, 'for user:', userId);
+
     res.json({ transactions: result.rows });
   } catch (error) {
     console.error('Error getting transaction history:', error);
