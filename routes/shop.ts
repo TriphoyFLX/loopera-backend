@@ -31,15 +31,15 @@ const router = express.Router();
 // Crypto Pay роуты (должны быть перед :id)
 router.post('/crypto/webhook', handleWebhook);
 
-// История транзакций (должна быть перед :id)
-router.get('/history', authenticate, getTransactionHistory);
-
 // Публичные роуты
 router.get('/', getPacks);
 router.get('/:id', getPackById);
 
 // Защищенные роуты (требуют авторизации)
 router.use(authenticate);
+
+// История транзакций (должна быть после authenticate и перед :id)
+router.get('/history', getTransactionHistory);
 
 router.post('/', upload.fields([
   { name: 'archive', maxCount: 1 },

@@ -483,7 +483,7 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
       FROM orders o
       JOIN sound_packs sp ON o.pack_id = sp.id
       JOIN users u ON sp.user_id = u.id
-      WHERE o.buyer_id = $1 AND o.status = 'paid'
+      WHERE o.buyer_id = $1 AND o.status = 'paid' AND sp.user_id != $1
       ORDER BY sp.id, o.created_at DESC
     `;
 
