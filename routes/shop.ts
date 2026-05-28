@@ -44,6 +44,7 @@ router.post('/', upload.fields([
   { name: 'voiceTag', maxCount: 1 },
   { name: 'textFile', maxCount: 1 }
 ]), createPack);
+router.get('/transactions', getTransactionHistory);
 router.post('/:id/buy', buyPack);
 router.get('/:id/download', downloadPack);
 router.get('/balance/my', getUserBalance);
@@ -61,9 +62,6 @@ router.get('/crypto/orders', getUserPayments);
 router.post('/admin/credit-balance', manualCreditBalance);
 router.post('/admin/debit-balance', manualDebitBalance);
 router.get('/admin/search-users', searchUsers);
-
-// История транзакций
-router.get('/transactions', getTransactionHistory);
 
 // Публичный роут для получения баланса по Telegram ID
 router.get('/balance/telegram/:telegram_id', getBalanceByTelegramId);
