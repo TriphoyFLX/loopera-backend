@@ -266,6 +266,12 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const buyerId = req.user!.id;
 
+    console.log('Buy pack attempt - Pack ID:', id, 'Buyer ID:', buyerId);
+
+    if (!buyerId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     // Получаем информацию о паке
     const packQuery = `
       SELECT sp.*, u.username as seller_name
@@ -319,6 +325,7 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     const balanceResult = await client.query(balanceQuery, [buyerId]);
 
     if (balanceResult.rows.length === 0) {
+      console.log('Creating user_balance for buyerId:', buyerId);
       await client.query(`
         INSERT INTO user_balance (user_id, available_balance)
         VALUES ($1, 0)
