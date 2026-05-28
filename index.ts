@@ -82,11 +82,6 @@ app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running' });
 });
 
-// Fallback route для SPA - отдаем index.html только для не-API запросов
-app.get(/^\/(?!api).*/, (req, res) => {
-  res.sendFile(path.join(projectRoot, 'frontend-repo', 'dist', 'index.html'));
-});
-
 const startServer = async () => {
   try {
     // В продакшене включаем инициализацию БД
