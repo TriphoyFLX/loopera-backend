@@ -611,7 +611,7 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
 
     // Получаем информацию о паке
     const packQuery = `
-      SELECT sp.archive_url, sp.title, sp.voice_tag_file, sp.text_file
+      SELECT sp.archive_url, sp.title
       FROM sound_packs sp
       WHERE sp.id = $1 AND sp.status = 'approved'
     `;
@@ -627,47 +627,13 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Archive file not found' });
     }
 
-    // Если есть дополнительные файлы, создаем новый архив
-    if (pack.voice_tag_file || pack.text_file) {
-      const archiver = require('archiver');
-      const archive = archiver('zip', { zlib: { level: 9 } });
+    const filePath = path.join(process.cwd(), pack.archive_url);
 
-      res.attachment(`${pack.title}.zip`);
-      archive.pipe(res);
-
-      // Добавляем основной архив
-      const archivePath = path.join(process.cwd(), pack.archive_url);
-      if (fs.existsSync(archivePath)) {
-        archive.file(archivePath, { name: 'pack.zip' });
-      }
-
-      // Добавляем voicetag
-      if (pack.voice_tag_file) {
-        const voiceTagPath = path.join(process.cwd(), pack.voice_tag_file);
-        if (fs.existsSync(voiceTagPath)) {
-          archive.file(voiceTagPath, { name: 'voicetag.mp3' });
-        }
-      }
-
-      // Добавляем текстовый файл
-      if (pack.text_file) {
-        const textFilePath = path.join(process.cwd(), pack.text_file);
-        if (fs.existsSync(textFilePath)) {
-          archive.file(textFilePath, { name: 'document.txt' });
-        }
-      }
-
-      await archive.finalize();
-    } else {
-      // Если нет дополнительных файлов, скачиваем только основной архив
-      const filePath = path.join(process.cwd(), pack.archive_url);
-
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'File not found on server' });
-      }
-
-      res.download(filePath, `${pack.title}.zip`);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found on server' });
     }
+
+    res.download(filePath, `${pack.title}.zip`);
   } catch (error) {
     console.error('Error downloading pack:', error);
     res.status(500).json({ error: 'Failed to download pack' });
