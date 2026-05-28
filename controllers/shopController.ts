@@ -56,7 +56,7 @@ export const getPacks = async (req: Request, res: Response) => {
       FROM sound_packs sp
       JOIN users u ON sp.user_id = u.id
       LEFT JOIN pack_ratings pr ON sp.id = pr.pack_id
-      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'completed'
+      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'paid'
       WHERE sp.status = 'approved'
     `;
 
