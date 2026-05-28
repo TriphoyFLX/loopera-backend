@@ -254,7 +254,10 @@ export const createPack = async (req: AuthRequest, res: Response) => {
 
     await client.query('COMMIT');
 
-    res.status(201).json(pack);
+    res.status(201).json({
+      ...pack,
+      message: 'Pack has been sent for moderation. It will be reviewed shortly.'
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error creating pack:', error);
