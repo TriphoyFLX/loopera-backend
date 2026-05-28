@@ -11,7 +11,9 @@ import {
   ratePack,
   reportPack,
   downloadPack,
-  upload
+  upload,
+  manualCreditBalance,
+  getBalanceByTelegramId
 } from '../controllers/shopController';
 import {
   getInvoiceStatus,
@@ -51,5 +53,11 @@ router.post('/:id/report', reportPack);
 router.post('/crypto/topup', createTopUpInvoice);
 router.get('/crypto/invoice/:invoiceId', getInvoiceStatus);
 router.get('/crypto/orders', getUserPayments);
+
+// Ручное управление балансом (только для админа)
+router.post('/admin/credit-balance', manualCreditBalance);
+
+// Публичный роут для получения баланса по Telegram ID
+router.get('/balance/telegram/:telegram_id', getBalanceByTelegramId);
 
 export default router;

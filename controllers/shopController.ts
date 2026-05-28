@@ -553,7 +553,154 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Пожаловаться на пак
+// Начислить баланс пользователю (для Python бота)
+export const creditBalance = async (req: Request, res: Response) => {
+  try {
+    const { user_id, amount, invoice_id } = req.body;
+
+    if (!user_id || !amount) {
+      return res.status(400).json({ error: 'user_id and amount are required' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Проверяем существует ли пользователь
+      const userCheck = await client.query(
+        'SELECT id FROM users WHERE telegram_id = $1',
+        [user_id]
+      );
+
+      if (userCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const userId = userCheck.rows[0].id;
+
+      // Начисляем баланс
+      await client.query(
+        `UPDATE user_balance 
+         SET available_balance = available_balance + $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $2`,
+        [amount, userId]
+      );
+
+      // Записываем транзакцию
+      await client.query(
+        `INSERT INTO top_ups (user_id, invoice_id, amount, currency, status)
+         VALUES ($1, $2, $3, 'coins', 'completed')`,
+        [userId, invoice_id, amount]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({ success: true, credited_amount: amount });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error crediting balance:', error);
+    res.status(500).json({ error: 'Failed to credit balance' });
+  }
+};
+
+// Ручное начисление баланса администратором
+export const manualCreditBalance = async (req: AuthRequest, res: Response) => {
+  try {
+    const { username, amount } = req.body;
+    const adminId = req.user!.id;
+
+    // Проверяем что это админ
+    if (req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!username || !amount) {
+      return res.status(400).json({ error: 'username and amount are required' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Находим пользователя по username
+      const userCheck = await client.query(
+        'SELECT id FROM users WHERE username = $1',
+        [username]
+      );
+
+      if (userCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const userId = userCheck.rows[0].id;
+
+      // Начисляем баланс
+      await client.query(
+        `UPDATE user_balance 
+         SET available_balance = available_balance + $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $2`,
+        [amount, userId]
+      );
+
+      // Записываем транзакцию
+      await client.query(
+        `INSERT INTO top_ups (user_id, amount, currency, status)
+         VALUES ($1, $2, 'coins', 'completed')`,
+        [userId, amount]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({ success: true, credited_amount: amount, username });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error manually crediting balance:', error);
+    res.status(500).json({ error: 'Failed to manually credit balance' });
+  }
+};
+
+// Получить баланс по Telegram ID
+export const getBalanceByTelegramId = async (req: Request, res: Response) => {
+  try {
+    const { telegram_id } = req.params;
+
+    const query = `
+      SELECT ub.available_balance, ub.pending_balance
+      FROM user_balance ub
+      JOIN users u ON ub.user_id = u.id
+      WHERE u.telegram_id = $1
+    `;
+    const result = await pool.query(query, [telegram_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      available_balance: result.rows[0].available_balance,
+      pending_balance: result.rows[0].pending_balance
+    });
+  } catch (error) {
+    console.error('Error getting balance by telegram ID:', error);
+    res.status(500).json({ error: 'Failed to get balance' });
+  }
+};
 export const reportPack = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
