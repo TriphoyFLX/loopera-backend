@@ -261,7 +261,7 @@ export const createPack = async (req: AuthRequest, res: Response) => {
 // Купить пак
 export const buyPack = async (req: AuthRequest, res: Response) => {
   const client = await pool.connect();
-  
+
   try {
     const { id } = req.params;
     const buyerId = req.user!.id;
@@ -276,6 +276,16 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     const packResult = await client.query(packQuery, [id]);
 
     if (packResult.rows.length === 0) {
+      // Check if pack exists but is not approved
+      const unapprovedPackQuery = `
+        SELECT status
+        FROM sound_packs
+        WHERE id = $1
+      `;
+      const unapprovedResult = await client.query(unapprovedPackQuery, [id]);
+      if (unapprovedResult.rows.length > 0) {
+        return res.status(400).json({ error: 'Pack is not approved yet. Please wait for moderation.' });
+      }
       return res.status(404).json({ error: 'Pack not found' });
     }
 
@@ -319,7 +329,7 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
 
     if (currentBalance < pack.price) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Insufficient balance' });
+      return res.status(400).json({ error: `Insufficient balance. You have ${currentBalance} coins but need ${pack.price} coins.` });
     }
 
     // Рассчитываем комиссию и заработок продавца
