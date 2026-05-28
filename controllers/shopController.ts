@@ -456,6 +456,8 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
 
+    console.log('Getting packs for user:', userId);
+
     const query = `
       SELECT DISTINCT ON (sp.id) sp.*,
              o.created_at as purchase_date
@@ -466,6 +468,8 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
     `;
 
     const result = await pool.query(query, [userId]);
+    console.log('Found purchased packs:', result.rows.length, result.rows);
+
     res.json({ packs: result.rows });
   } catch (error) {
     console.error('Error getting user packs:', error);
