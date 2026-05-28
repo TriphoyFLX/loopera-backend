@@ -14,10 +14,10 @@ import {
   upload
 } from '../controllers/shopController';
 import {
-  createInvoice,
   getInvoiceStatus,
   handleWebhook,
-  getUserPayments
+  getUserPayments,
+  createTopUpInvoice
 } from '../controllers/cryptoPayController';
 
 const router = express.Router();
@@ -48,7 +48,7 @@ router.post('/:id/rate', ratePack);
 router.post('/:id/report', reportPack);
 
 // Crypto Pay защищенные роуты
-router.post('/crypto/invoice', createInvoice);
+router.post('/crypto/topup', createTopUpInvoice);
 router.get('/crypto/invoice/:invoiceId', getInvoiceStatus);
 router.get('/crypto/orders', getUserPayments);
 

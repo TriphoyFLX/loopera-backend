@@ -309,6 +309,27 @@ export const initDatabase = async () => {
     // Удаляем таблицу orders если она существует для чистой миграции
     await pool.query(`DROP TABLE IF EXISTS orders CASCADE`);
 
+    // Таблица для пополнения коинов
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS top_ups (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        invoice_id VARCHAR(100) UNIQUE NOT NULL,
+        amount DECIMAL(20,8) NOT NULL,
+        currency VARCHAR(10) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_top_ups_user_id ON top_ups(user_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_top_ups_invoice_id ON top_ups(invoice_id);
+    `);
+
     // Таблица для заказов (orders) вместо payments
     await pool.query(`
       CREATE TABLE orders (

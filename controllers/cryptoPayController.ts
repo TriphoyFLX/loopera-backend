@@ -6,50 +6,29 @@ import pool from '../config/database';
 const CRYPTO_PAY_API_KEY = '587082:AAIgjoqj1WcoCAY0TakHYyls5MCF9qcXA2S';
 const CRYPTO_PAY_API_URL = 'https://pay.crypt.bot/api';
 
-// Создать invoice для оплаты пака
-export const createInvoice = async (req: AuthRequest, res: Response) => {
+// Создать invoice для пополнения коинов
+export const createTopUpInvoice = async (req: AuthRequest, res: Response) => {
   const client = await pool.connect();
   
   try {
-    const { packId } = req.body;
-    const userId = req.user?.userId;
+    const { amount } = req.body; // amount in rubles = coins
+    const userId = req.user!.userId;
 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (!packId) {
-      return res.status(400).json({ error: 'Pack ID is required' });
+    if (!amount || amount < 1) {
+      return res.status(400).json({ error: 'Amount must be at least 1 ruble' });
     }
-
-    // Получаем информацию о паке
-    const packQuery = `
-      SELECT id, title, price
-      FROM sound_packs
-      WHERE id = $1 AND status = 'approved'
-    `;
-    const packResult = await client.query(packQuery, [packId]);
-
-    if (packResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Pack not found' });
-    }
-
-    const pack = packResult.rows[0];
-    const amount = pack.price || 10; // Цена в USDT
-    const sellerId = pack.user_id;
-    
-    // Рассчитываем комиссию (20% платформе, 80% продавцу)
-    const commission = amount * 0.20;
-    const sellerEarnings = amount - commission;
 
     // Создаем invoice через Crypto Pay API
     const invoiceData = {
       asset: 'USDT',
-      amount: amount,
-      description: `Purchase pack: ${pack.title}`,
+      amount: amount / 100, // Convert rubles to USDT (approximate rate)
+      description: `Top up ${amount} coins`,
       paid_btn_name: 'callback',
-      paid_btn_url: `${process.env.FRONTEND_URL || 'https://loopera-lpr.vercel.app'}/shop`,
+      paid_btn_url: `${process.env.FRONTEND_URL || 'https://loopera-lpr.vercel.app'}/profile`,
       allow_anonymous: false,
       expires_in: 3600 // 1 час
     };
@@ -73,21 +52,17 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
 
     const invoice = invoiceResult.result;
 
-    // Сохраняем информацию о заказе в базе данных
-    const orderQuery = `
-      INSERT INTO orders (buyer_id, pack_id, seller_id, invoice_id, amount, currency, commission, seller_earnings, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', NOW())
+    // Сохраняем информацию о пополнении в базе данных
+    const topUpQuery = `
+      INSERT INTO top_ups (user_id, invoice_id, amount, currency, status, created_at)
+      VALUES ($1, $2, $3, $4, 'pending', NOW())
       RETURNING id
     `;
-    const orderResult = await client.query(orderQuery, [
+    const topUpResult = await client.query(topUpQuery, [
       userId,
-      packId,
-      sellerId,
       invoice.invoice_id,
       amount,
-      'USDT',
-      commission,
-      sellerEarnings
+      'coins'
     ]);
 
     await client.query('COMMIT');
@@ -97,16 +72,16 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       invoice: {
         id: invoice.invoice_id,
         pay_url: invoice.pay_url,
-        amount: invoice.amount,
-        currency: invoice.asset,
+        amount: amount,
+        currency: 'coins',
         expires_at: new Date(invoice.expires * 1000).toISOString()
       }
     });
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error creating invoice:', error);
-    res.status(500).json({ error: 'Failed to create payment invoice' });
+    console.error('Error creating top-up invoice:', error);
+    res.status(500).json({ error: 'Failed to create top-up invoice' });
   } finally {
     client.release();
   }
@@ -165,6 +140,49 @@ export const handleWebhook = async (req: Request, res: Response) => {
       const amount = payload.amount;
       const currency = payload.asset;
 
+      // Проверяем, является ли это пополнением коинов
+      const topUpQuery = `
+        SELECT id, user_id, amount, status
+        FROM top_ups
+        WHERE invoice_id = $1
+      `;
+      const topUpResult = await client.query(topUpQuery, [invoiceId]);
+
+      if (topUpResult.rows.length > 0) {
+        const topUp = topUpResult.rows[0];
+
+        // Если пополнение уже обработано
+        if (topUp.status === 'completed') {
+          return res.json({ ok: true });
+        }
+
+        await client.query('BEGIN');
+        
+        // Обновляем статус пополнения
+        const updateTopUpQuery = `
+          UPDATE top_ups
+          SET status = 'completed'
+          WHERE id = $1
+        `;
+        await client.query(updateTopUpQuery, [topUp.id]);
+
+        // Начисляем коины пользователю
+        const balanceQuery = `
+          INSERT INTO user_balance (user_id, available_balance, total_earned, created_at, updated_at)
+          VALUES ($1, $2, $2, NOW(), NOW())
+          ON CONFLICT (user_id) DO UPDATE SET
+            available_balance = user_balance.available_balance + $2,
+            total_earned = user_balance.total_earned + $2,
+            updated_at = NOW()
+        `;
+        await client.query(balanceQuery, [topUp.user_id, topUp.amount]);
+
+        await client.query('COMMIT');
+
+        console.log('Top-up completed:', invoiceId, 'User credited:', topUp.amount, 'coins');
+        return res.json({ ok: true });
+      }
+
       // Проверяем, существует ли такой заказ в базе
       const orderQuery = `
         SELECT id, buyer_id, seller_id, pack_id, seller_earnings, status
@@ -204,7 +222,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
       await client.query(purchaseQuery, [order.buyer_id, order.pack_id]);
 
       // Начисляем баланс продавцу (в internal balance)
-      const balanceQuery = `
+      const sellerBalanceQuery = `
         INSERT INTO user_balance (user_id, available_balance, total_earned, created_at, updated_at)
         VALUES ($1, $2, $2, NOW(), NOW())
         ON CONFLICT (user_id) DO UPDATE SET
@@ -212,7 +230,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           total_earned = user_balance.total_earned + $2,
           updated_at = NOW()
       `;
-      await client.query(balanceQuery, [order.seller_id, order.seller_earnings]);
+      await client.query(sellerBalanceQuery, [order.seller_id, order.seller_earnings]);
 
       await client.query('COMMIT');
 
