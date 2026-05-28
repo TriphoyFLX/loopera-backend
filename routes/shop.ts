@@ -37,10 +37,12 @@ router.get('/', getPacks);
 // Защищенные роуты (требуют авторизации)
 router.use(authenticate);
 
+// Маршруты с префиксом /balance/my (должны быть первыми)
+router.get('/balance/my', getUserBalance);
+
 // Маршруты с префиксом /my (должны быть перед :id)
 router.get('/my/packs', getUserPacks);
 router.get('/my/created-packs', getUserCreatedPacks);
-router.get('/balance/my', getUserBalance);
 
 // История транзакций (должна быть перед :id)
 router.get('/history', getTransactionHistory);
