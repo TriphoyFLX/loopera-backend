@@ -500,7 +500,13 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
     console.log('getUserCreatedPacks called for userId:', userId);
 
     const query = `
-      SELECT * FROM sound_packs WHERE user_id = $1 ORDER BY created_at DESC
+      SELECT sp.*,
+             COUNT(DISTINCT o.id) as sales_count
+      FROM sound_packs sp
+      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'paid'
+      WHERE sp.user_id = $1
+      GROUP BY sp.id
+      ORDER BY sp.created_at DESC
     `;
 
     const result = await pool.query(query, [userId]);
