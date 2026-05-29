@@ -820,14 +820,29 @@ export const manualCreditBalance = async (req: AuthRequest, res: Response) => {
 
       const userId = userCheck.rows[0].id;
 
-      // Начисляем баланс
-      await client.query(
-        `UPDATE user_balance 
-         SET available_balance = available_balance + $1,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE user_id = $2`,
-        [amount, userId]
+      // Проверяем есть ли запись в user_balance
+      const balanceCheck = await client.query(
+        'SELECT id FROM user_balance WHERE user_id = $1',
+        [userId]
       );
+
+      if (balanceCheck.rows.length === 0) {
+        // Создаем запись если её нет
+        await client.query(
+          `INSERT INTO user_balance (user_id, available_balance, total_earned)
+           VALUES ($1, $2, $2)`,
+          [userId, amount]
+        );
+      } else {
+        // Начисляем баланс
+        await client.query(
+          `UPDATE user_balance
+           SET available_balance = available_balance + $1,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = $2`,
+          [amount, userId]
+        );
+      }
 
       // Записываем транзакцию
       await client.query(
