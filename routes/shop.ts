@@ -1,53 +1,88 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth';
-import multer from 'multer';
-import path from 'path';
 import {
-  createPackNew,
-  getApprovedPacksNew,
-  buyPackNew,
-  getUserPacksNew,
-  getUserCreatedPacksNew,
-  downloadPackNew
-} from '../controllers/shopControllerNew';
+  getPacks,
+  getPackById,
+  createPack,
+  buyPack,
+  getUserBalance,
+  createWithdrawal,
+  getUserPacks,
+  getUserCreatedPacks,
+  ratePack,
+  reportPack,
+  downloadPack,
+  upload,
+  manualCreditBalance,
+  getBalanceByTelegramId,
+  manualDebitBalance,
+  searchUsers,
+  getTransactionHistory
+} from '../controllers/shopController';
+import {
+  getInvoiceStatus,
+  handleWebhook,
+  getUserPayments,
+  createTopUpInvoice
+} from '../controllers/cryptoPayController';
 
 const router = express.Router();
 
-// Настройка multer для загрузки файлов
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.cwd(), 'uploads', 'shop');
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ storage });
+// Crypto Pay роуты (должны быть перед :id)
+router.post('/crypto/webhook', handleWebhook);
 
 // Публичные роуты
-router.get('/', getApprovedPacksNew);
+router.get('/', getPacks);
 
-// Защищенные роуты
+// Защищенные роуты (требуют авторизации)
 router.use(authenticate);
 
-// Маршруты с префиксом /my
-router.get('/my/packs', getUserPacksNew);
-router.get('/my/created-packs', getUserCreatedPacksNew);
+// Маршруты с префиксом /balance/my (должны быть первыми)
+router.get('/balance/my', getUserBalance);
 
-// Маршруты для покупки и скачивания
-router.post('/:id/buy', buyPackNew);
-router.get('/:id/download', downloadPackNew);
+// Маршруты с префиксом /my (должны быть перед :id)
+router.get('/my/packs', getUserPacks);
+router.get('/my/created-packs', getUserCreatedPacks);
 
-// Создание пака
+// История транзакций (должна быть перед :id)
+router.get('/history', getTransactionHistory);
+
+// POST роуты
 router.post('/', upload.fields([
   { name: 'archive', maxCount: 1 },
   { name: 'preview1', maxCount: 1 },
   { name: 'preview2', maxCount: 1 },
   { name: 'voiceTag', maxCount: 1 },
   { name: 'textFile', maxCount: 1 }
-]), createPackNew);
+]), createPack);
+router.post('/:id/buy', buyPack);
+router.post('/:id/rate', ratePack);
+router.post('/:id/report', reportPack);
+router.post('/withdrawals', createWithdrawal);
+
+// GET роуты с динамическими параметрами (должны быть после статических)
+router.get('/:id/download', downloadPack);
+
+// Динамические роуты (всегда в конце)
+router.get('/:id', getPackById);
+
+// Crypto Pay защищенные роуты
+router.post('/crypto/topup', createTopUpInvoice);
+router.get('/crypto/invoice/:invoiceId', getInvoiceStatus);
+router.get('/crypto/orders', getUserPayments);
+
+// Ручное управление балансом (только для админа)
+router.post('/admin/credit-balance', manualCreditBalance);
+router.post('/admin/debit-balance', manualDebitBalance);
+router.get('/admin/search-users', searchUsers);
+
+// Публичный роут для получения баланса по Telegram ID
+router.get('/balance/telegram/:telegram_id', getBalanceByTelegramId);
+
+// Debug route to log all unmatched requests
+router.use((req, res, next) => {
+  console.log('Unmatched route:', req.method, req.path, req.originalUrl);
+  next();
+});
 
 export default router;
