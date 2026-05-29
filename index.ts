@@ -86,7 +86,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Catch-all for unmatched API routes
-app.use('/api/*', (req, res) => {
+app.use('/api', (req, res) => {
   res.status(404).json({ error: 'API route not found', path: req.path });
 });
 
