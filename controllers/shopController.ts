@@ -505,25 +505,19 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
 
-    console.log('getUserCreatedPacks called for userId:', userId);
-
     const query = `
-      SELECT sp.*,
-             COUNT(DISTINCT o.id) as sales_count
+      SELECT sp.*
       FROM sound_packs sp
-      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'paid'
       WHERE sp.user_id = $1
-      GROUP BY sp.id
       ORDER BY sp.created_at DESC
     `;
 
     const result = await pool.query(query, [userId]);
-    console.log('Found packs:', result.rows.length);
 
     res.json({ packs: result.rows });
   } catch (error) {
     console.error('Error in getUserCreatedPacks:', error);
-    res.status(500).json({ error: 'Failed to get user created packs', details: error instanceof Error ? error.message : 'Unknown error' });
+    res.status(500).json({ error: 'Failed to get user created packs' });
   }
 };
 
