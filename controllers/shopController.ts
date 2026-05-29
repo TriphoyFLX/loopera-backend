@@ -343,10 +343,6 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: `Insufficient balance. You have ${currentBalance} coins but need ${pack.price} coins.` });
     }
 
-    // Рассчитываем комиссию и заработок продавца
-    const commission = Math.floor(pack.price * 0.15);
-    const sellerEarnings = pack.price - commission;
-
     // Списываем деньги у покупателя
     await client.query(`
       UPDATE user_balance
@@ -355,7 +351,7 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
       WHERE user_id = $2
     `, [pack.price, buyerId]);
 
-    // Добавляем деньги продавцу в available_balance
+    // Добавляем деньги продавцу в available_balance (100% от цены, без комиссии)
     await client.query(`
       INSERT INTO user_balance (user_id, available_balance, total_earned)
       VALUES ($1, $2, $2)
@@ -363,14 +359,14 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
         available_balance = user_balance.available_balance + $2,
         total_earned = user_balance.total_earned + $2,
         updated_at = CURRENT_TIMESTAMP
-    `, [pack.user_id, sellerEarnings]);
+    `, [pack.user_id, pack.price]);
 
     // Создаем заказ
     const invoiceId = `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     await client.query(`
       INSERT INTO orders (pack_id, buyer_id, seller_id, invoice_id, amount, currency, commission, seller_earnings, status)
-      VALUES ($1, $2, $3, $4, $5, 'coins', $6, $7, 'paid')
-    `, [id, buyerId, pack.user_id, invoiceId, pack.price, commission, sellerEarnings]);
+      VALUES ($1, $2, $3, $4, $5, 'coins', 0, $5, 'paid')
+    `, [id, buyerId, pack.user_id, invoiceId, pack.price]);
 
     // Добавляем пак в список купленных паков пользователя
     await client.query(`
