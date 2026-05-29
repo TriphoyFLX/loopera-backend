@@ -64,6 +64,11 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/likes', likeRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/admin', adminRoutes);
+// Test route to verify proxy
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Proxy works!', time: new Date().toISOString() });
+});
+
 app.use('/api/shop', shopRoutes);
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/pack-upload', packUploadRoutes);
