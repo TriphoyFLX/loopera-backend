@@ -537,27 +537,27 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
     const query = `
       SELECT
         'purchase' as type,
-        o.created_at,
-        o.amount,
-        o.currency,
+        up.purchased_at as created_at,
+        sp.price as amount,
+        'coins' as currency,
         sp.title as description,
-        o.invoice_id
-      FROM orders o
-      JOIN sound_packs sp ON o.pack_id = sp.id
-      WHERE o.buyer_id = $1 AND o.status = 'paid'
+        up.id::text as invoice_id
+      FROM user_packs up
+      JOIN sound_packs sp ON up.pack_id = sp.id
+      WHERE up.user_id = $1
 
       UNION ALL
 
       SELECT
         'sale' as type,
-        o.created_at,
-        o.seller_earnings as amount,
-        o.currency,
+        up.purchased_at as created_at,
+        sp.price as amount,
+        'coins' as currency,
         sp.title as description,
-        o.invoice_id
-      FROM orders o
-      JOIN sound_packs sp ON o.pack_id = sp.id
-      WHERE o.seller_id = $1 AND o.status = 'paid'
+        up.id::text as invoice_id
+      FROM user_packs up
+      JOIN sound_packs sp ON up.pack_id = sp.id
+      WHERE sp.user_id = $1 AND up.user_id != $1
 
       UNION ALL
 
@@ -577,7 +577,7 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
         'withdrawal' as type,
         w.created_at,
         w.amount,
-        w.currency,
+        'coins' as currency,
         'Вывод средств' as description,
         w.id::text as invoice_id
       FROM withdrawals w
