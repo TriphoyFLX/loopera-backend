@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth';
+import pool from '../config/database';
 import {
   getPacks,
   getPackById,
@@ -30,6 +31,17 @@ const router = express.Router();
 
 // Crypto Pay роуты (должны быть перед :id)
 router.post('/crypto/webhook', handleWebhook);
+
+// Debug endpoint to test pack retrieval without auth
+router.get('/debug/packs/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await pool.query('SELECT * FROM sound_packs WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    res.json({ packs: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get packs' });
+  }
+});
 
 // Публичные роуты
 router.get('/', getPacks);
