@@ -32,6 +32,11 @@ const router = express.Router();
 // Crypto Pay роуты (должны быть перед :id)
 router.post('/crypto/webhook', handleWebhook);
 
+// Simple test endpoint to verify proxy works
+router.get('/test', (req, res) => {
+  res.json({ message: 'Proxy works!', time: new Date().toISOString() });
+});
+
 // Debug endpoint to test pack retrieval without auth (must be before authenticate)
 router.get('/debug/packs/:userId', async (req, res) => {
   try {
