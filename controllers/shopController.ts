@@ -423,12 +423,27 @@ export const getUserBalance = async (req: AuthRequest, res: Response) => {
 // Создать заявку на вывод средств
 export const createWithdrawal = async (req: AuthRequest, res: Response) => {
   try {
-    const { amount, phone, bank } = req.body;
+    const { amount, phone, bank, withdrawal_method = 'sbp' } = req.body;
     const userId = req.user!.userId;
 
     // Проверяем минимальную сумму вывода
     if (amount < 1000) {
       return res.status(400).json({ error: 'Minimum withdrawal amount is 1000 coins' });
+    }
+
+    // Рассчитываем комиссию в зависимости от метода
+    let commission = 0;
+    switch (withdrawal_method) {
+      case 'paypal':
+        commission = Math.round(amount * 0.05); // 5%
+        break;
+      case 'card':
+        commission = Math.round(amount * 0.02); // 2%
+        break;
+      case 'sbp':
+      default:
+        commission = 0; // 0%
+        break;
     }
 
     // Получаем баланс
@@ -443,13 +458,13 @@ export const createWithdrawal = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Insufficient available balance' });
     }
 
-    // Создаем заявку
+    // Создаем заявку с методом вывода и комиссией
     const withdrawalQuery = `
-      INSERT INTO withdrawals (user_id, amount, phone, bank)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO withdrawals (user_id, amount, phone, bank, withdrawal_method, commission)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
-    const withdrawalResult = await pool.query(withdrawalQuery, [userId, amount, phone, bank]);
+    const withdrawalResult = await pool.query(withdrawalQuery, [userId, amount, phone, bank, withdrawal_method, commission]);
 
     res.status(201).json(withdrawalResult.rows[0]);
   } catch (error) {
