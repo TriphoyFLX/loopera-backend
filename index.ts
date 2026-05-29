@@ -56,6 +56,12 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 
+// Test route to verify proxy (must be before all other routes)
+app.get('/api/test', (req, res) => {
+  console.log('Test route called');
+  res.json({ message: 'Proxy works!', time: new Date().toISOString() });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', topUsersRoutes);
 app.use('/api/loops', loopsRoutes);
@@ -64,10 +70,6 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/likes', likeRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/admin', adminRoutes);
-// Test route to verify proxy
-app.get('/api/test', (req, res) => {
-  res.json({ message: 'Proxy works!', time: new Date().toISOString() });
-});
 
 app.use('/api/shop', shopRoutes);
 app.use('/api/admin/shop', adminShopRoutes);
