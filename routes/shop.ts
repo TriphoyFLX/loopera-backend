@@ -32,7 +32,7 @@ const router = express.Router();
 // Crypto Pay роуты (должны быть перед :id)
 router.post('/crypto/webhook', handleWebhook);
 
-// Debug endpoint to test pack retrieval without auth
+// Debug endpoint to test pack retrieval without auth (must be before authenticate)
 router.get('/debug/packs/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
