@@ -52,11 +52,11 @@ export const getPacks = async (req: Request, res: Response) => {
       SELECT sp.*, u.username, u.hashtag, u.avatar_url,
              COALESCE(AVG(pr.rating), 0) as avg_rating,
              COUNT(pr.id) as rating_count,
-             COUNT(DISTINCT o.id) as sales_count
+             COUNT(DISTINCT up.id) as sales_count
       FROM sound_packs sp
       JOIN users u ON sp.user_id = u.id
       LEFT JOIN pack_ratings pr ON sp.id = pr.pack_id
-      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'paid'
+      LEFT JOIN user_packs up ON sp.id = up.pack_id
       WHERE sp.status = 'approved'
     `;
 
@@ -509,9 +509,9 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
 
     const query = `
       SELECT sp.*,
-             COUNT(DISTINCT o.id) as sales_count
+             COUNT(DISTINCT up.id) as sales_count
       FROM sound_packs sp
-      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'paid'
+      LEFT JOIN user_packs up ON sp.id = up.pack_id
       WHERE sp.user_id = $1
       GROUP BY sp.id
       ORDER BY sp.created_at DESC
@@ -1031,8 +1031,8 @@ export const deletePack = async (req: AuthRequest, res: Response) => {
     // Проверяем что пак не был куплен (защита от удаления проданных паков)
     const salesCheckQuery = `
       SELECT COUNT(*) as sales_count
-      FROM orders
-      WHERE pack_id = $1 AND status = 'paid'
+      FROM user_packs
+      WHERE pack_id = $1
     `;
     const salesCheckResult = await client.query(salesCheckQuery, [id]);
     const salesCount = parseInt(salesCheckResult.rows[0].sales_count);
