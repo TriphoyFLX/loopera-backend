@@ -431,20 +431,22 @@ export const createWithdrawal = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Minimum withdrawal amount is 1000 coins' });
     }
 
-    // Рассчитываем комиссию в зависимости от метода
-    let commission = 0;
+    // Рассчитываем комиссию: 15% платформа + метод%
+    let platformCommission = Math.round(amount * 0.15); // 15% платформа
+    let methodCommission = 0;
     switch (withdrawal_method) {
       case 'paypal':
-        commission = Math.round(amount * 0.05); // 5%
+        methodCommission = Math.round(amount * 0.05); // 5% PayPal
         break;
       case 'card':
-        commission = Math.round(amount * 0.02); // 2%
+        methodCommission = Math.round(amount * 0.02); // 2% Карта
         break;
       case 'sbp':
       default:
-        commission = 0; // 0%
+        methodCommission = 0; // 0% СБП
         break;
     }
+    const commission = platformCommission + methodCommission;
 
     // Получаем баланс
     const balanceQuery = `
