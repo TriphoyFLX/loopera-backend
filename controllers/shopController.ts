@@ -508,9 +508,12 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
     console.log('User ID:', userId);
 
     const query = `
-      SELECT sp.*
+      SELECT sp.*,
+             COUNT(DISTINCT o.id) as sales_count
       FROM sound_packs sp
+      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'paid'
       WHERE sp.user_id = $1
+      GROUP BY sp.id
       ORDER BY sp.created_at DESC
     `;
 
@@ -991,5 +994,73 @@ export const reportPack = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error reporting pack:', error);
     res.status(500).json({ error: 'Failed to report pack' });
+  }
+};
+
+// Удалить пак (soft delete - только изменение статуса)
+export const deletePack = async (req: AuthRequest, res: Response) => {
+  const client = await pool.connect();
+
+  try {
+    const { id } = req.params;
+    const userId = req.user!.userId;
+    const isAdmin = req.user!.role === 'admin';
+
+    console.log('Delete pack attempt - Pack ID:', id, 'User ID:', userId, 'Is Admin:', isAdmin);
+
+    // Получаем информацию о паке
+    const packQuery = `
+      SELECT sp.*, u.username
+      FROM sound_packs sp
+      JOIN users u ON sp.user_id = u.id
+      WHERE sp.id = $1
+    `;
+    const packResult = await client.query(packQuery, [id]);
+
+    if (packResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Pack not found' });
+    }
+
+    const pack = packResult.rows[0];
+
+    // Проверяем права: либо владелец, либо админ
+    if (pack.user_id !== userId && !isAdmin) {
+      return res.status(403).json({ error: 'You can only delete your own packs' });
+    }
+
+    // Проверяем что пак не был куплен (защита от удаления проданных паков)
+    const salesCheckQuery = `
+      SELECT COUNT(*) as sales_count
+      FROM orders
+      WHERE pack_id = $1 AND status = 'paid'
+    `;
+    const salesCheckResult = await client.query(salesCheckQuery, [id]);
+    const salesCount = parseInt(salesCheckResult.rows[0].sales_count);
+
+    if (salesCount > 0 && !isAdmin) {
+      return res.status(400).json({ error: 'Cannot delete pack that has been purchased. Contact admin for assistance.' });
+    }
+
+    await client.query('BEGIN');
+
+    // Soft delete - меняем статус на 'deleted'
+    const deleteQuery = `
+      UPDATE sound_packs
+      SET status = 'deleted',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `;
+    const deleteResult = await client.query(deleteQuery, [id]);
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Pack deleted successfully', pack: deleteResult.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting pack:', error);
+    res.status(500).json({ error: 'Failed to delete pack' });
+  } finally {
+    client.release();
   }
 };

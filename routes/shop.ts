@@ -18,7 +18,8 @@ import {
   getBalanceByTelegramId,
   manualDebitBalance,
   searchUsers,
-  getTransactionHistory
+  getTransactionHistory,
+  deletePack
 } from '../controllers/shopController';
 import {
   getInvoiceStatus,
@@ -76,6 +77,9 @@ router.post('/:id/buy', buyPack);
 router.post('/:id/rate', ratePack);
 router.post('/:id/report', reportPack);
 router.post('/withdrawals', createWithdrawal);
+
+// DELETE роуты
+router.delete('/:id', deletePack);
 
 // GET роуты с динамическими параметрами (должны быть после статических)
 router.get('/:id/download', downloadPack);
