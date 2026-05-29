@@ -85,6 +85,11 @@ app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running' });
 });
 
+// Catch-all for unmatched API routes
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ error: 'API route not found', path: req.path });
+});
+
 const startServer = async () => {
   try {
     // В продакшене включаем инициализацию БД
