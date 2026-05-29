@@ -57,8 +57,8 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // Test route to verify proxy (must be before all other routes)
-app.get('/api/test', (req, res) => {
-  console.log('Test route called');
+app.get('/api/proxy-test', (req, res) => {
+  console.log('Proxy test route called');
   res.json({ message: 'Proxy works!', time: new Date().toISOString() });
 });
 
