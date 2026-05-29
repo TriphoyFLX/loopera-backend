@@ -74,16 +74,12 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/pack-upload', packUploadRoutes);
-app.use('/api/test', testUploadRoutes);
 app.use('/api/beats', beatRoutes);
 
 // Раздача статических файлов (загруженные лупы)
 app.use('/uploads/loops', express.static('uploads/loops'));
 app.use('/uploads', express.static('uploads'));
 app.use('/uploads/beats', express.static('uploads/beats'));
-
-// Раздача статических файлов фронтенда
-app.use(express.static(path.join(projectRoot, 'frontend-repo', 'dist')));
 
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running' });
