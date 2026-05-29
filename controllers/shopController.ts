@@ -503,7 +503,9 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
 // Получить паки созданные пользователем
 export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
   try {
+    console.log('=== getUserCreatedPacks called ===');
     const userId = req.user!.userId;
+    console.log('User ID:', userId);
 
     const query = `
       SELECT sp.*
@@ -513,6 +515,7 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
     `;
 
     const result = await pool.query(query, [userId]);
+    console.log('Found packs:', result.rows.length);
 
     res.json({ packs: result.rows });
   } catch (error) {
