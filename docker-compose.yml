@@ -8,8 +8,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-loopera}
-      POSTGRES_USER: ${DB_USER:-loopera_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USER:-matveevdima}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_this_to_secure_password}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -19,7 +19,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-loopera_user} -d ${DB_NAME:-loopera}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-matveevdima} -d ${DB_NAME:-loopera}"]
       interval: 10s
       timeout: 5s
       retries: 5
