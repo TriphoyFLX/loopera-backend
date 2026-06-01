@@ -489,16 +489,16 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
     console.log('Getting packs for user:', userId);
 
     const query = `
-      SELECT DISTINCT ON (sp.id) sp.*,
-             o.created_at as purchase_date,
+      SELECT sp.*,
+             up.purchased_at as purchase_date,
              u.username as seller_username,
              u.avatar_url as seller_avatar,
              u.hashtag as seller_hashtag
-      FROM orders o
-      JOIN sound_packs sp ON o.pack_id = sp.id
+      FROM user_packs up
+      JOIN sound_packs sp ON up.pack_id = sp.id
       JOIN users u ON sp.user_id = u.id
-      WHERE o.buyer_id = $1 AND o.status = 'paid' AND sp.user_id != $1
-      ORDER BY sp.id, o.created_at DESC
+      WHERE up.user_id = $1 AND sp.user_id != $1
+      ORDER BY up.purchased_at DESC
     `;
 
     const result = await pool.query(query, [userId]);
