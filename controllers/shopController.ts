@@ -988,7 +988,7 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
 
       // Находим пользователя по username
       const userCheck = await client.query(
-        'SELECT id, available_balance FROM users u LEFT JOIN user_balance ub ON u.id = ub.user_id WHERE u.username = $1',
+        'SELECT u.id, ub.available_balance FROM users u LEFT JOIN user_balance ub ON u.id = ub.user_id WHERE u.username = $1',
         [username]
       );
 
