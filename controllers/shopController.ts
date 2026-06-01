@@ -1019,7 +1019,7 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
       await client.query(
         `INSERT INTO withdrawals (user_id, amount, phone, bank, status, processed_by, processed_at, withdrawal_method, commission)
          VALUES ($1, $2, 'manual', 'manual', 'completed', $3, CURRENT_TIMESTAMP, 'manual', $4)`,
-        [userId, netAmount, adminId, commission]
+        [userId, withdrawalAmount, adminId, commission]
       );
 
       await client.query('COMMIT');
