@@ -844,11 +844,12 @@ export const manualCreditBalance = async (req: AuthRequest, res: Response) => {
         );
       }
 
-      // Записываем транзакцию
+      // Записываем транзакцию с уникальным invoice_id
+      const invoiceId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await client.query(
         `INSERT INTO top_ups (user_id, invoice_id, amount, currency, status)
-         VALUES ($1, 'manual', $2, 'coins', 'completed')`,
-        [userId, amount]
+         VALUES ($1, $2, $3, 'coins', 'completed')`,
+        [userId, invoiceId, amount]
       );
 
       await client.query('COMMIT');
