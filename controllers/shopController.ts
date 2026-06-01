@@ -894,6 +894,42 @@ export const getBalanceByTelegramId = async (req: Request, res: Response) => {
   }
 };
 
+// Получить баланс пользователя по username (для админа)
+export const getUserBalanceByUsername = async (req: AuthRequest, res: Response) => {
+  try {
+    const { username } = req.params;
+
+    // Проверяем что это админ
+    if (req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const query = `
+      SELECT u.username, u.email, ub.available_balance, ub.pending_balance, ub.total_earned
+      FROM users u
+      LEFT JOIN user_balance ub ON u.id = ub.user_id
+      WHERE u.username = $1
+    `;
+    const result = await pool.query(query, [username]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    res.json({
+      username: user.username,
+      email: user.email,
+      available_balance: user.available_balance || 0,
+      pending_balance: user.pending_balance || 0,
+      total_earned: user.total_earned || 0
+    });
+  } catch (error) {
+    console.error('Error getting user balance by username:', error);
+    res.status(500).json({ error: 'Failed to get user balance' });
+  }
+};
+
 // Поиск пользователей по username для автодополнения
 export const searchUsers = async (req: AuthRequest, res: Response) => {
   try {
