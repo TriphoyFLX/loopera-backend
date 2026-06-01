@@ -978,6 +978,12 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
     }
 
     const withdrawalAmount = parseInt(amount);
+
+    // Проверяем минимальную сумму вывода
+    if (withdrawalAmount < 1000) {
+      return res.status(400).json({ error: 'Минимальная сумма для вывода: 1000 коинов' });
+    }
+
     const commission = Math.round(withdrawalAmount * 0.15); // 15% commission
     const netAmount = withdrawalAmount - commission;
 
