@@ -314,10 +314,7 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     `;
     const existingPackResult = await client.query(existingPackQuery, [buyerId, id]);
 
-    console.log('Existing pack check result:', existingPackResult.rows.length);
-
     if (existingPackResult.rows.length > 0) {
-      console.log('Pack already purchased by user');
       return res.status(400).json({ error: 'Вы уже приобрели этот пак. Проверьте раздел "Купленные паки" в вашем профиле.' });
     }
 
@@ -378,11 +375,8 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
       ON CONFLICT (user_id, pack_id) DO NOTHING
     `, [buyerId, id]);
 
-    console.log('Pack added to user_packs for user:', buyerId, 'pack:', id);
-
     await client.query('COMMIT');
 
-    console.log('Pack purchased successfully by user:', buyerId, 'pack:', id);
     res.json({ message: 'Pack purchased successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -608,7 +602,6 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
 
     const result = await pool.query(query, [userId]);
     console.log('Found transactions:', result.rows.length, 'for user:', userId);
-    console.log('Transactions:', JSON.stringify(result.rows, null, 2));
 
     res.json({ transactions: result.rows });
   } catch (error) {
