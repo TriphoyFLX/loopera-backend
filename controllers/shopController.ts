@@ -314,7 +314,10 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     `;
     const existingPackResult = await client.query(existingPackQuery, [buyerId, id]);
 
+    console.log('Existing pack check result:', existingPackResult.rows.length);
+
     if (existingPackResult.rows.length > 0) {
+      console.log('Pack already purchased by user');
       return res.status(400).json({ error: 'Pack already purchased' });
     }
 
@@ -375,8 +378,11 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
       ON CONFLICT (user_id, pack_id) DO NOTHING
     `, [buyerId, id]);
 
+    console.log('Pack added to user_packs for user:', buyerId, 'pack:', id);
+
     await client.query('COMMIT');
 
+    console.log('Pack purchased successfully by user:', buyerId, 'pack:', id);
     res.json({ message: 'Pack purchased successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
