@@ -318,7 +318,7 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
 
     if (existingPackResult.rows.length > 0) {
       console.log('Pack already purchased by user');
-      return res.status(400).json({ error: 'Pack already purchased' });
+      return res.status(400).json({ error: 'Вы уже приобрели этот пак. Проверьте раздел "Купленные паки" в вашем профиле.' });
     }
 
     await client.query('BEGIN');
