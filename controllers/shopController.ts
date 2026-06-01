@@ -608,6 +608,7 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
 
     const result = await pool.query(query, [userId]);
     console.log('Found transactions:', result.rows.length, 'for user:', userId);
+    console.log('Transactions:', JSON.stringify(result.rows, null, 2));
 
     res.json({ transactions: result.rows });
   } catch (error) {
