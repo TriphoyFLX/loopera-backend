@@ -966,6 +966,8 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
     const { username, amount, currency } = req.body;
     const adminId = req.user!.userId;
 
+    console.log('Manual debit balance attempt - username:', username, 'amount:', amount, 'adminId:', adminId);
+
     // Проверяем что это админ
     if (req.user!.role !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
@@ -976,7 +978,7 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
     }
 
     const withdrawalAmount = parseInt(amount);
-    const commission = Math.round(withdrawalAmount * 0.2); // 20% commission
+    const commission = Math.round(withdrawalAmount * 0.15); // 15% commission
     const netAmount = withdrawalAmount - commission;
 
     const client = await pool.connect();
