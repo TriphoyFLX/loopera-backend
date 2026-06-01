@@ -307,14 +307,14 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     }
 
     // Проверяем не купил ли уже
-    const existingOrderQuery = `
+    const existingPackQuery = `
       SELECT id
-      FROM orders
-      WHERE pack_id = $1 AND buyer_id = $2 AND status = 'completed'
+      FROM user_packs
+      WHERE user_id = $1 AND pack_id = $2
     `;
-    const existingOrderResult = await client.query(existingOrderQuery, [id, buyerId]);
+    const existingPackResult = await client.query(existingPackQuery, [buyerId, id]);
 
-    if (existingOrderResult.rows.length > 0) {
+    if (existingPackResult.rows.length > 0) {
       return res.status(400).json({ error: 'Pack already purchased' });
     }
 
