@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -24,6 +25,7 @@ import adminShopRoutes from './routes/adminShop.js';
 import packUploadRoutes from './routes/packUpload.js';
 import testUploadRoutes from './routes/testUpload.js';
 import beatRoutes from './routes/beats.js';
+import { generalLimiter, authLimiter, sensitiveLimiter } from './middleware/rateLimit.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5001');
@@ -49,6 +51,27 @@ app.use(cors({
   origin: allowedOrigins,
   credentials: true
 }));
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limiting
+app.use(generalLimiter);
 
 app.use(express.json());
 
