@@ -62,12 +62,6 @@ export const uploadPackLoops = async (req: AuthRequest, res: Response) => {
   
   uploadMiddleware(req, res, async (err) => {
     if (err) {
-        message: err.message,
-        code: err.code,
-        storageErrors: err.storageErrors,
-        limit: err.limit,
-        field: err.field
-      });
       return res.status(400).json({ error: err.message });
     }
 
