@@ -20,7 +20,8 @@ import {
   searchUsers,
   getTransactionHistory,
   deletePack,
-  getUserBalanceByUsername
+  getUserBalanceByUsername,
+  getAllPacksAdmin
 } from '../controllers/shopController';
 import {
   getInvoiceStatus,
@@ -102,6 +103,7 @@ router.post('/admin/credit-balance', manualCreditBalance);
 router.post('/admin/debit-balance', manualDebitBalance);
 router.get('/admin/search-users', searchUsers);
 router.get('/admin/balance/:username', getUserBalanceByUsername);
+router.get('/admin/packs/all', getAllPacksAdmin);
 
 // Публичный роут для получения баланса по Telegram ID
 router.get('/balance/telegram/:telegram_id', getBalanceByTelegramId);

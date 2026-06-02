@@ -1161,3 +1161,69 @@ export const deletePack = async (req: AuthRequest, res: Response) => {
     client.release();
   }
 };
+
+// Получить все паки (для админа)
+export const getAllPacksAdmin = async (req: AuthRequest, res: Response) => {
+  const client = await pool.connect();
+
+  try {
+    const { page = 1, limit = 50, status } = req.query;
+    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    let query = `
+      SELECT sp.*, u.username, u.hashtag, u.avatar_url, u.email,
+             COALESCE(AVG(pr.rating), 0) as avg_rating,
+             COUNT(pr.id) as rating_count,
+             COALESCE(SUM(CASE WHEN o.status = 'paid' THEN 1 ELSE 0 END), 0) as sales_count
+      FROM sound_packs sp
+      JOIN users u ON sp.user_id = u.id
+      LEFT JOIN pack_ratings pr ON sp.id = pr.pack_id
+      LEFT JOIN orders o ON sp.id = o.pack_id
+    `;
+
+    const params: any[] = [];
+    let paramCount = 0;
+
+    if (status && status !== 'all') {
+      query += ` WHERE sp.status = $${++paramCount}`;
+      params.push(status);
+    }
+
+    query += `
+      GROUP BY sp.id, u.username, u.hashtag, u.avatar_url, u.email
+      ORDER BY sp.created_at DESC
+      LIMIT $${++paramCount} OFFSET $${++paramCount}
+    `;
+
+    params.push(parseInt(limit as string), offset);
+
+    const result = await client.query(query, params);
+
+    // Получаем общее количество
+    let countQuery = 'SELECT COUNT(*) FROM sound_packs';
+    const countParams: any[] = [];
+
+    if (status && status !== 'all') {
+      countQuery += ' WHERE status = $1';
+      countParams.push(status);
+    }
+
+    const countResult = await client.query(countQuery, countParams);
+    const totalPacks = parseInt(countResult.rows[0].count);
+
+    res.json({
+      packs: result.rows,
+      pagination: {
+        totalPacks,
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        totalPages: Math.ceil(totalPacks / parseInt(limit as string))
+      }
+    });
+  } catch (error) {
+    console.error('Error getting all packs:', error);
+    res.status(500).json({ error: 'Failed to get packs' });
+  } finally {
+    client.release();
+  }
+};
