@@ -118,10 +118,12 @@ export const getPackById = async (req: Request, res: Response) => {
     const packQuery = `
       SELECT sp.*, u.username, u.hashtag, u.avatar_url,
              COALESCE(AVG(pr.rating), 0) as avg_rating,
-             COUNT(pr.id) as rating_count
+             COUNT(pr.id) as rating_count,
+             COALESCE(SUM(CASE WHEN o.status = 'paid' THEN 1 ELSE 0 END), 0) as sales_count
       FROM sound_packs sp
       JOIN users u ON sp.user_id = u.id
       LEFT JOIN pack_ratings pr ON sp.id = pr.pack_id
+      LEFT JOIN orders o ON sp.id = o.pack_id
       WHERE sp.id = $1 AND sp.status = 'approved'
       GROUP BY sp.id, u.username, u.hashtag, u.avatar_url
     `;
