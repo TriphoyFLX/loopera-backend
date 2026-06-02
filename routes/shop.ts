@@ -53,6 +53,9 @@ router.get('/debug/packs/:userId', async (req, res) => {
 // Публичные роуты
 router.get('/', getPacks);
 
+// Публичный роут для получения отдельного пака (должен быть до authenticate)
+router.get('/:id', getPackById);
+
 // Защищенные роуты (требуют авторизации)
 router.use(authenticate);
 
@@ -84,9 +87,6 @@ router.delete('/:id', deletePack);
 
 // GET роуты с динамическими параметрами (должны быть после статических)
 router.get('/:id/download', downloadPack);
-
-// Динамические роуты (всегда в конце)
-router.get('/:id', getPackById);
 
 // Crypto Pay защищенные роуты
 router.post('/crypto/topup', createTopUpInvoice);
