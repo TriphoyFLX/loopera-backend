@@ -27,8 +27,8 @@ const upload = multer({
     fileSize: 500 * 1024 * 1024 // 500MB limit for archives
   },
   fileFilter: (req, file, cb) => {
-    // Allow audio files, zip files, and text files
-    const allowedExtensions = ['.mp3', '.wav', '.zip', '.txt', '.pdf'];
+    // Allow audio files, zip files, text files, and images
+    const allowedExtensions = ['.mp3', '.wav', '.zip', '.txt', '.pdf', '.jpg', '.jpeg', '.png', '.webp'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedExtensions.includes(ext)) {
       cb(null, true);
