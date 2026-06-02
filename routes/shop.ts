@@ -63,6 +63,9 @@ router.get('/balance/my', getUserBalance);
 router.get('/my/packs', getUserPacks);
 router.get('/my/created-packs', getUserCreatedPacks);
 
+// Маршрут /user-packs (должен быть перед :id)
+router.get('/user-packs', getUserPacks);
+
 // История транзакций (должна быть перед :id)
 router.get('/history', getTransactionHistory);
 

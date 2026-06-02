@@ -619,6 +619,8 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
     const { rating, review } = req.body;
     const userId = req.user!.userId;
 
+    console.log('Rate pack attempt - Pack ID:', id, 'User ID:', userId, 'Rating:', rating);
+
     // Проверяем что пользователь купил пак (либо через orders, либо через user_packs)
     const purchaseCheckQuery = `
       SELECT id
@@ -631,9 +633,21 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
     `;
     const purchaseCheckResult = await pool.query(purchaseCheckQuery, [id, userId]);
 
+    console.log('Purchase check result:', purchaseCheckResult.rows.length);
+
     if (purchaseCheckResult.rows.length === 0) {
       return res.status(403).json({ error: 'You must purchase the pack to rate it' });
     }
+
+    // Проверяем есть ли уже оценка
+    const existingRatingQuery = `
+      SELECT rating, review
+      FROM pack_ratings
+      WHERE pack_id = $1 AND user_id = $2
+    `;
+    const existingRatingResult = await pool.query(existingRatingQuery, [id, userId]);
+
+    console.log('Existing rating:', existingRatingResult.rows[0]);
 
     // Добавляем или обновляем рейтинг
     const ratingQuery = `
@@ -646,6 +660,8 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
       RETURNING *
     `;
     const ratingResult = await pool.query(ratingQuery, [id, userId, rating, review]);
+
+    console.log('Rating saved:', ratingResult.rows[0]);
 
     res.status(201).json(ratingResult.rows[0]);
   } catch (error) {
