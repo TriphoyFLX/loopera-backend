@@ -75,7 +75,8 @@ router.post('/', upload.fields([
   { name: 'preview1', maxCount: 1 },
   { name: 'preview2', maxCount: 1 },
   { name: 'voiceTag', maxCount: 1 },
-  { name: 'textFile', maxCount: 1 }
+  { name: 'textFile', maxCount: 1 },
+  { name: 'cover', maxCount: 1 }
 ]), createPack);
 router.post('/:id/buy', buyPack);
 router.post('/:id/rate', ratePack);

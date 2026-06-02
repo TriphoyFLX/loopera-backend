@@ -201,6 +201,7 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     const previewFile2 = files['preview2'] ? files['preview2'][0] : undefined;
     const voiceTagFile = files['voiceTag'] ? files['voiceTag'][0] : undefined;
     const textFile = files['textFile'] ? files['textFile'][0] : undefined;
+    const coverFile = files['cover'] ? files['cover'][0] : undefined;
 
     // Проверяем возраст аккаунта (минимум 3 дня)
     const userQuery = `
@@ -231,21 +232,22 @@ export const createPack = async (req: AuthRequest, res: Response) => {
 
     // Создаем пак
     const packQuery = `
-      INSERT INTO sound_packs (title, description, price, user_id, voice_tag, status, archive_url, preview_url, preview_url_2, voice_tag_file, text_file)
-      VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10)
+      INSERT INTO sound_packs (title, description, price, user_id, voice_tag, status, archive_url, preview_url, preview_url_2, voice_tag_file, text_file, cover_url)
+      VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
     const packResult = await client.query(packQuery, [
-      title, 
-      description, 
-      price, 
-      userId, 
+      title,
+      description,
+      price,
+      userId,
       voice_tag,
       `/uploads/shop/${archiveFile.filename}`,
       previewFile1 ? `/uploads/shop/${previewFile1.filename}` : null,
       previewFile2 ? `/uploads/shop/${previewFile2.filename}` : null,
       voiceTagFile ? `/uploads/shop/${voiceTagFile.filename}` : null,
-      textFile ? `/uploads/shop/${textFile.filename}` : null
+      textFile ? `/uploads/shop/${textFile.filename}` : null,
+      coverFile ? `/uploads/shop/${coverFile.filename}` : null
     ]);
     const pack = packResult.rows[0];
 
