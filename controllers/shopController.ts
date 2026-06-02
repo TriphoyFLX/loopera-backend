@@ -619,11 +619,15 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
     const { rating, review } = req.body;
     const userId = req.user!.userId;
 
-    // Проверяем что пользователь купил пак
+    // Проверяем что пользователь купил пак (либо через orders, либо через user_packs)
     const purchaseCheckQuery = `
       SELECT id
       FROM orders
       WHERE pack_id = $1 AND buyer_id = $2 AND status = 'paid'
+      UNION
+      SELECT id
+      FROM user_packs
+      WHERE pack_id = $1 AND user_id = $2
     `;
     const purchaseCheckResult = await pool.query(purchaseCheckQuery, [id, userId]);
 
