@@ -90,20 +90,20 @@ router.delete('/:id', deletePack);
 // GET роуты с динамическими параметрами (должны быть после статических)
 router.get('/:id/download', downloadPack);
 
-// Динамический роут для получения отдельного пака (всегда в конце)
-router.get('/:id', getPackById);
-
-// Crypto Pay защищенные роуты
-router.post('/crypto/topup', createTopUpInvoice);
-router.get('/crypto/invoice/:invoiceId', getInvoiceStatus);
-router.get('/crypto/orders', getUserPayments);
-
 // Ручное управление балансом (только для админа)
 router.post('/admin/credit-balance', manualCreditBalance);
 router.post('/admin/debit-balance', manualDebitBalance);
 router.get('/admin/search-users', searchUsers);
 router.get('/admin/balance/:username', getUserBalanceByUsername);
 router.get('/admin/packs/all', getAllPacksAdmin);
+
+// Crypto Pay защищенные роуты
+router.post('/crypto/topup', createTopUpInvoice);
+router.get('/crypto/invoice/:invoiceId', getInvoiceStatus);
+router.get('/crypto/orders', getUserPayments);
+
+// Динамический роут для получения отдельного пака (всегда в конце)
+router.get('/:id', getPackById);
 
 // Публичный роут для получения баланса по Telegram ID
 router.get('/balance/telegram/:telegram_id', getBalanceByTelegramId);
