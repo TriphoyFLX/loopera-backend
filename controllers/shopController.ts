@@ -623,7 +623,7 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
     const purchaseCheckQuery = `
       SELECT id
       FROM orders
-      WHERE pack_id = $1 AND buyer_id = $2 AND status = 'completed'
+      WHERE pack_id = $1 AND buyer_id = $2 AND status = 'paid'
     `;
     const purchaseCheckResult = await pool.query(purchaseCheckQuery, [id, userId]);
 
