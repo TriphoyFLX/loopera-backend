@@ -370,6 +370,98 @@ export const resolveReport = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Получить все паки с пагинацией и фильтрами
+export const getAllPacks = async (req: AuthRequest, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const status = req.query.status as string || 'all';
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    const params: any[] = [];
+
+    if (status !== 'all') {
+      whereClause = 'WHERE sp.status = $1';
+      params.push(status);
+    }
+
+    // Получаем паки
+    const packsQuery = `
+      SELECT sp.*, u.username, u.hashtag, u.avatar_url,
+             COUNT(DISTINCT o.id) as sales_count
+      FROM sound_packs sp
+      JOIN users u ON sp.user_id = u.id
+      LEFT JOIN orders o ON sp.id = o.pack_id AND o.status = 'completed'
+      ${whereClause}
+      GROUP BY sp.id, u.username, u.hashtag, u.avatar_url
+      ORDER BY sp.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+    params.push(limit, offset);
+
+    const packsResult = await pool.query(packsQuery, params);
+
+    // Получаем общее количество
+    const countQuery = `
+      SELECT COUNT(DISTINCT sp.id) as total
+      FROM sound_packs sp
+      ${whereClause}
+    `;
+    const countResult = await pool.query(countQuery, status !== 'all' ? [status] : []);
+
+    const totalPacks = parseInt(countResult.rows[0].total);
+
+    res.json({
+      packs: packsResult.rows,
+      pagination: {
+        totalPacks,
+        page,
+        limit,
+        totalPages: Math.ceil(totalPacks / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error getting all packs:', error);
+    res.status(500).json({ error: 'Failed to get all packs' });
+  }
+};
+
+// Удалить пак
+export const deletePack = async (req: AuthRequest, res: Response) => {
+  const client = await pool.connect();
+
+  try {
+    const { id } = req.params;
+
+    await client.query('BEGIN');
+
+    // Удаляем связи с лупами
+    await client.query('DELETE FROM pack_loops WHERE pack_id = $1', [id]);
+
+    // Удаляем пак
+    const deleteResult = await client.query(
+      'DELETE FROM sound_packs WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (deleteResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pack not found' });
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Pack deleted successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting pack:', error);
+    res.status(500).json({ error: 'Failed to delete pack' });
+  } finally {
+    client.release();
+  }
+};
+
 // Получить статистику магазина
 export const getShopStats = async (req: AuthRequest, res: Response) => {
   try {
@@ -377,7 +469,7 @@ export const getShopStats = async (req: AuthRequest, res: Response) => {
 
     // Общая статистика
     const generalStatsQuery = `
-      SELECT 
+      SELECT
         COUNT(DISTINCT sp.id) as total_packs,
         COUNT(DISTINCT CASE WHEN sp.status = 'approved' THEN sp.id END) as approved_packs,
         COUNT(DISTINCT CASE WHEN sp.status = 'pending' THEN sp.id END) as pending_packs,
@@ -393,7 +485,7 @@ export const getShopStats = async (req: AuthRequest, res: Response) => {
 
     // Статистика за последние 7 дней
     const weeklyStatsQuery = `
-      SELECT 
+      SELECT
         COUNT(DISTINCT o.id) as weekly_orders,
         COALESCE(SUM(o.price), 0) as weekly_revenue,
         COUNT(DISTINCT sp.id) as weekly_packs
@@ -407,7 +499,7 @@ export const getShopStats = async (req: AuthRequest, res: Response) => {
 
     // Топ продавцы
     const topSellersQuery = `
-      SELECT 
+      SELECT
         u.username,
         u.hashtag,
         COUNT(DISTINCT o.id) as sales_count,
@@ -424,7 +516,7 @@ export const getShopStats = async (req: AuthRequest, res: Response) => {
 
     // Топ паки
     const topPacksQuery = `
-      SELECT 
+      SELECT
         sp.title,
         sp.price,
         COUNT(DISTINCT o.id) as sales_count,

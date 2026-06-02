@@ -11,7 +11,9 @@ import {
   rejectWithdrawal,
   getReports,
   resolveReport,
-  getShopStats
+  getShopStats,
+  getAllPacks,
+  deletePack
 } from '../controllers/adminShopController';
 
 const router = express.Router();
@@ -21,9 +23,11 @@ router.use(authenticate);
 
 // Модерация паков
 router.get('/packs/pending', getPendingPacks);
+router.get('/packs/all', getAllPacks);
 router.get('/packs/:id/moderation', getPackForModeration);
 router.post('/packs/:id/approve', approvePack);
 router.post('/packs/:id/reject', rejectPack);
+router.delete('/packs/:id', deletePack);
 router.post('/users/:userId/ban', banUser);
 
 // Вывод средств
