@@ -76,7 +76,6 @@ export const getTopUsers = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Get top users error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения топ пользователей',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -124,7 +123,6 @@ export const getUserStats = async (req: AuthRequest, res: Response) => {
 
     res.json(stats);
   } catch (error) {
-    console.error('Get user stats error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения статистики пользователя',
       error: error instanceof Error ? error.message : 'Unknown error'

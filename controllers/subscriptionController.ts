@@ -33,7 +33,6 @@ export const getUserSubscriptions = async (req: AuthRequest, res: Response) => {
       }))
     });
   } catch (error) {
-    console.error('Get user subscriptions error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения подписок',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -98,7 +97,6 @@ export const addSubscription = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Add subscription error:', error);
     res.status(500).json({ 
       message: 'Ошибка добавления подписки',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -148,7 +146,6 @@ export const removeSubscription = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Подписка удалена' });
   } catch (error) {
-    console.error('Remove subscription error:', error);
     res.status(500).json({ 
       message: 'Ошибка удаления подписки',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -232,7 +229,6 @@ export const getSubscribedLoops = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Get subscribed loops error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения лупов',
       error: error instanceof Error ? error.message : 'Unknown error'

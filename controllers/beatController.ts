@@ -69,7 +69,6 @@ export const createBeat = async (req: Request, res: Response) => {
     res.status(201).json({ beat });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Create beat error:', error);
     res.status(500).json({ error: 'Failed to create beat' });
   } finally {
     client.release();
@@ -136,7 +135,6 @@ export const getAllBeats = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Get all beats error:', error);
     res.status(500).json({ error: 'Failed to get beats' });
   }
 };
@@ -184,7 +182,6 @@ export const getBeatById = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Get beat by id error:', error);
     res.status(500).json({ error: 'Failed to get beat' });
   }
 };
@@ -216,7 +213,6 @@ export const getLoopCollaborations = async (req: Request, res: Response) => {
 
     res.json({ collaborations });
   } catch (error) {
-    console.error('Get loop collaborations error:', error);
     res.status(500).json({ error: 'Failed to get collaborations' });
   }
 };
@@ -255,7 +251,6 @@ export const deleteBeat = async (req: Request, res: Response) => {
     res.json({ message: 'Beat deleted successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Delete beat error:', error);
     res.status(500).json({ error: 'Failed to delete beat' });
   } finally {
     client.release();

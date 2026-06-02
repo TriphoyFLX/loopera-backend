@@ -72,7 +72,6 @@ export const getAdminStats = async (req: Request, res: Response) => {
 
     res.json(stats);
   } catch (error) {
-    console.error('Error fetching admin stats:', error);
     res.status(500).json({ error: 'Failed to fetch admin statistics' });
   }
 };
@@ -139,7 +138,6 @@ export const getAllUsers = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 };
@@ -181,7 +179,6 @@ export const getAllLoops = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching loops:', error);
     res.status(500).json({ error: 'Failed to fetch loops' });
   }
 };
@@ -203,7 +200,6 @@ export const deleteLoop = async (req: Request, res: Response) => {
 
     res.json({ message: 'Loop deleted successfully' });
   } catch (error) {
-    console.error('Error deleting loop:', error);
     res.status(500).json({ error: 'Failed to delete loop' });
   }
 };
@@ -225,7 +221,6 @@ export const banUser = async (req: Request, res: Response) => {
 
     res.json({ message: 'User banned successfully' });
   } catch (error) {
-    console.error('Error banning user:', error);
     res.status(500).json({ error: 'Failed to ban user' });
   }
 };
@@ -241,7 +236,6 @@ export const unbanUser = async (req: Request, res: Response) => {
 
     res.json({ message: 'User unbanned successfully' });
   } catch (error) {
-    console.error('Error unbanning user:', error);
     res.status(500).json({ error: 'Failed to unban user' });
   }
 };

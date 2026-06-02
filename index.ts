@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -24,6 +25,7 @@ import adminShopRoutes from './routes/adminShop.js';
 import packUploadRoutes from './routes/packUpload.js';
 import testUploadRoutes from './routes/testUpload.js';
 import beatRoutes from './routes/beats.js';
+import { generalLimiter, authLimiter, sensitiveLimiter } from './middleware/rateLimit.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5001');
@@ -50,15 +52,31 @@ app.use(cors({
   credentials: true
 }));
 
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
-  next();
-});
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limiting
+app.use(generalLimiter);
+
 app.use(express.json());
 
 // Test route to verify proxy (must be before all other routes)
 app.get('/api/proxy-test', (req, res) => {
-  console.log('Proxy test route called');
   res.json({ message: 'Proxy works!', time: new Date().toISOString() });
 });
 
@@ -100,19 +118,13 @@ const startServer = async () => {
     // Проверяем подключение к БД
     try {
       const client = await pool.connect();
-      console.log('Database connection successful!');
-      console.log('Database user:', process.env.DB_USER);
-      const result = await client.query('SELECT current_user');
-      console.log('Current database user:', result.rows[0].current_user);
       client.release();
     } catch (dbError) {
-      console.error('Database connection failed:', dbError);
+      // Silent fail for production
     }
-    
+
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Database connected: PostgreSQL`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      // Silent start for production
     });
   } catch (error) {
     console.error('Failed to start server:', error);

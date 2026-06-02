@@ -42,15 +42,12 @@ export const testUpload = async (req: AuthRequest, res: Response) => {
   
   uploadMiddleware(req, res, async (err) => {
     if (err) {
-      console.error('Upload error:', err);
       return res.status(400).json({ error: err.message });
     }
 
     try {
       const files = req.files as Express.Multer.File[];
       
-      console.log('Received files:', files?.length || 0);
-      console.log('Request body:', req.body);
       
       if (!files || files.length === 0) {
         return res.status(400).json({ error: 'No files uploaded' });
@@ -68,7 +65,6 @@ export const testUpload = async (req: AuthRequest, res: Response) => {
         files: uploadedFiles
       });
     } catch (error) {
-      console.error('Error in test upload:', error);
       res.status(500).json({ error: 'Failed to upload files' });
     }
   });

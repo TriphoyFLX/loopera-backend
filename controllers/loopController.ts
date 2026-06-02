@@ -64,10 +64,8 @@ const safeUnlinkSync = (filePath: string): void => {
   try {
     if (existsSync(filePath)) {
       unlinkSync(filePath);
-      console.log('Файл успешно удален:', filePath);
     }
   } catch (error) {
-    console.error('Ошибка при удалении файла:', filePath, error);
     // Не пробрасываем ошибку дальше, чтобы не прерывать основной процесс
   }
 };
@@ -146,7 +144,6 @@ export const trackTelegramClick = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Клик записан' });
   } catch (error) {
-    console.error('Error tracking telegram click:', error);
     res.status(500).json({ 
       message: 'Ошибка при записи клика',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -187,7 +184,6 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
         interval = '7 days';
     }
 
-    console.log('Fetching stats history for user:', userId, 'period:', period, 'groupBy:', groupBy, 'interval:', interval);
 
     // Get likes over time
     const likesQuery = `
@@ -201,9 +197,7 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
       ORDER BY date
     `;
 
-    console.log('Likes query:', likesQuery);
     const likesResult = await pool.query(likesQuery, [userId]);
-    console.log('Likes result:', likesResult.rows);
 
     // Get loops uploaded over time
     const loopsQuery = `
@@ -217,9 +211,7 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
       ORDER BY date
     `;
 
-    console.log('Loops query:', loopsQuery);
     const loopsResult = await pool.query(loopsQuery, [userId]);
-    console.log('Loops result:', loopsResult.rows);
 
     // Get telegram clicks over time
     const telegramQuery = `
@@ -233,9 +225,7 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
       ORDER BY date
     `;
 
-    console.log('Telegram query:', telegramQuery);
     const telegramResult = await pool.query(telegramQuery, [userId]);
-    console.log('Telegram result:', telegramResult.rows);
 
     res.json({
       likes_over_time: likesResult.rows,
@@ -243,7 +233,6 @@ export const getUserStatsHistory = async (req: AuthRequest, res: Response) => {
       telegram_clicks_over_time: telegramResult.rows
     });
   } catch (error) {
-    console.error('Error fetching user stats history:', error);
     res.status(500).json({ 
       message: 'Ошибка при получении истории статистики',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -301,7 +290,6 @@ export const getUserStats = async (req: AuthRequest, res: Response) => {
       avg_likes_per_loop: avgLikes
     });
   } catch (error) {
-    console.error('Error fetching user stats:', error);
     res.status(500).json({ 
       message: 'Ошибка при получении статистики',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -315,22 +303,16 @@ export const uploadLoop = [
     let uploadedFilePath: string | null = null;
     
     try {
-      console.log('=== НАЧАЛО ЗАГРУЗКИ ЛУПА ===');
-      console.log('User ID:', req.user?.id);
-      console.log('File:', req.file ? {
         originalname: req.file.originalname,
         filename: req.file.filename,
         size: req.file.size,
         mimetype: req.file.mimetype
       } : 'No file');
-      console.log('Body keys:', Object.keys(req.body));
-      console.log('Body values:', req.body);
 
       // Проверка авторизации
       const userId = req.user?.userId || req.user?.id;
       
       if (!req.user || !userId) {
-        console.error('Ошибка: пользователь не авторизован или отсутствует ID');
         return res.status(401).json({ 
           message: 'Не авторизован',
           error: 'User authentication required'
@@ -339,7 +321,6 @@ export const uploadLoop = [
 
       // Проверка файла
       if (!req.file) {
-        console.error('Ошибка: файл не загружен');
         return res.status(400).json({ 
           message: 'Файл не загружен',
           error: 'No audio file provided'
@@ -353,7 +334,6 @@ export const uploadLoop = [
       try {
         validatedParams = validateLoopParams(req.body);
       } catch (validationError) {
-        console.error('Ошибка валидации параметров:', validationError);
         safeUnlinkSync(uploadedFilePath);
         return res.status(400).json({ 
           message: validationError instanceof Error ? validationError.message : 'Ошибка валидации параметров',
@@ -363,7 +343,6 @@ export const uploadLoop = [
 
       const { title, bpm, key, genre, tags, instagram, telegram } = validatedParams;
       
-      console.log('Валидированные параметры:', { title, bpm, key, genre, tags, instagram, telegram });
 
       // Проверка подключения к базе данных
       if (!pool) {
@@ -403,18 +382,14 @@ export const uploadLoop = [
         telegram
       ];
 
-      console.log('SQL Query:', sql);
-      console.log('Params:', params);
       
       let result;
       try {
         result = await pool.query(sql, params);
       } catch (dbError) {
-        console.error('Ошибка выполнения SQL запроса:', dbError);
         throw new Error(`Database error: ${dbError instanceof Error ? dbError.message : 'Unknown DB error'}`);
       }
 
-      console.log('Результат запроса:', result.rows);
 
       if (result.rows.length === 0) {
         throw new Error('Не удалось вставить луп в базу данных');
@@ -422,8 +397,6 @@ export const uploadLoop = [
 
       const loop = result.rows[0];
 
-      console.log('Луп успешно сохранен:', loop);
-      console.log('=== КОНЕЦ ЗАГРУЗКИ ЛУПА ===');
 
       res.status(201).json({
         message: 'Луп успешно загружен',
@@ -442,10 +415,6 @@ export const uploadLoop = [
         }
       });
     } catch (error) {
-      console.error('=== ОШИБКА ЗАГРУЗКИ ЛУПА ===');
-      console.error('Тип ошибки:', error?.constructor?.name);
-      console.error('Сообщение ошибки:', error instanceof Error ? error.message : error);
-      console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
       
       // Безопасное удаление файла при ошибке
       if (uploadedFilePath) {
@@ -481,7 +450,6 @@ export const uploadLoop = [
 export const getUserLoops = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId || req.user?.id;
-    console.log('Получение лупов пользователя:', userId);
 
     if (!req.user || !userId) {
       return res.status(401).json({ 
@@ -499,14 +467,12 @@ export const getUserLoops = async (req: AuthRequest, res: Response) => {
       [userId]
     );
 
-    console.log('Найдено лупов:', result.rows.length);
 
     res.json({
       loops: result.rows,
       total: result.rows.length
     });
   } catch (error) {
-    console.error('Get user loops error:', error);
     res.status(500).json({ 
       message: 'Ошибка сервера при получении лупов пользователя',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -534,14 +500,11 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       });
     }
 
-    console.log(`Получение всех лупов: страница ${page}, лимит ${limit}, сортировка: ${sortBy}, тег: ${tag}, жанр: ${genre}, BPM: ${minBpm}-${maxBpm}, тональность: ${key}, поиск: ${search}`);
 
     // Проверим текущего пользователя базы данных
     try {
       const userResult = await pool.query('SELECT current_user');
-      console.log('Текущий пользователь БД в getAllLoops:', userResult.rows[0].current_user);
     } catch (e) {
-      console.log('Ошибка при получении текущего пользователя:', e);
     }
 
     // Оптимизированный запрос с индексацией
@@ -638,7 +601,6 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       totalCount = null;
     }
 
-    console.log('Найдено лупов:', result.rows.length, 'всего:', totalCount || 'не считано');
 
     res.json({
       loops: result.rows,
@@ -651,7 +613,6 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Get all loops error:', error);
     res.status(500).json({ 
       message: 'Ошибка сервера при получении всех лупов',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -663,7 +624,6 @@ export const getPopularHashtags = async (req: express.Request, res: Response) =>
   try {
     const limit = parseInt(req.query.limit as string) || 20;
 
-    console.log(`Получение популярных хэштегов: лимит ${limit}`);
 
     // Получаем все теги из всех лупов и подсчитываем их частоту
     // tags - это jsonb массив, поэтому используем jsonb_array_elements
@@ -679,7 +639,6 @@ export const getPopularHashtags = async (req: express.Request, res: Response) =>
       [limit]
     );
 
-    console.log('Найдено хэштегов:', result.rows.length);
 
     res.json({
       hashtags: result.rows.map(row => ({
@@ -688,7 +647,6 @@ export const getPopularHashtags = async (req: express.Request, res: Response) =>
       }))
     });
   } catch (error) {
-    console.error('Get popular hashtags error:', error);
     res.status(500).json({ 
       message: 'Ошибка сервера при получении популярных хэштегов',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -700,7 +658,6 @@ export const getRandomLoops = async (req: express.Request, res: Response) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 20);
 
-    console.log(`Получение случайных лупов: лимит ${limit}`);
 
     // Получаем случайные лупы с использованием ORDER BY RANDOM()
     const result = await pool.query(
@@ -713,13 +670,11 @@ export const getRandomLoops = async (req: express.Request, res: Response) => {
       [limit]
     );
 
-    console.log('Найдено случайных лупов:', result.rows.length);
 
     res.json({
       loops: result.rows
     });
   } catch (error) {
-    console.error('Get random loops error:', error);
     res.status(500).json({ 
       message: 'Ошибка сервера при получении случайных лупов',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -741,7 +696,6 @@ export const deleteLoop = async (req: AuthRequest, res: Response) => {
 
     const idString = id.toString();
     const loopId = parseInt(idString);
-    console.log(`Удаление лупа ${loopId} пользователем ${userId}`);
 
     // Проверяем, принадлежит ли луп пользователю
     const loopCheck = await pool.query(
@@ -765,11 +719,9 @@ export const deleteLoop = async (req: AuthRequest, res: Response) => {
     // Удаляем запись из базы
     await pool.query('DELETE FROM loops WHERE id = $1', [loopId]);
 
-    console.log('Луп успешно удален');
 
     res.json({ message: 'Луп успешно удален' });
   } catch (error) {
-    console.error('Delete loop error:', error);
     res.status(500).json({ 
       message: 'Ошибка сервера при удалении лупа',
       error: error instanceof Error ? error.message : 'Unknown error'

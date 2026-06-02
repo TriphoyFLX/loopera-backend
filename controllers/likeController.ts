@@ -7,9 +7,6 @@ type Response = express.Response;
 // Лайкнуть/дизлайкнуть луп
 export const toggleLike = async (req: AuthRequest, res: Response) => {
   try {
-    console.log('toggleLike - req.user:', req.user);
-    console.log('toggleLike - req.user.id:', req.user?.id);
-    console.log('toggleLike - req.user.userId:', req.user?.userId);
     
     const userId = req.user?.userId || req.user?.id;
     
@@ -68,7 +65,6 @@ export const toggleLike = async (req: AuthRequest, res: Response) => {
       likes_count: parseInt(likesCount.rows[0].count)
     });
   } catch (error) {
-    console.error('Toggle like error:', error);
     res.status(500).json({ 
       message: 'Ошибка при обработке лайка',
       error: (error as Error).message || 'Unknown error'
@@ -111,7 +107,6 @@ export const getLikeStatus = async (req: AuthRequest, res: Response) => {
       likes_count: parseInt(likesCount.rows[0].count)
     });
   } catch (error) {
-    console.error('Get like status error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения статуса лайка',
       error: (error as Error).message || 'Unknown error'
@@ -180,7 +175,6 @@ export const getLikedLoops = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Get liked loops error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения избранных лупов',
       error: (error as Error).message || 'Unknown error'

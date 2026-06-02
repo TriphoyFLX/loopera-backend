@@ -96,11 +96,9 @@ export const register = async (req: Request, res: Response) => {
     try {
       await sendVerificationCode(email, verificationCode);
     } catch (emailError) {
-      console.error('Error sending verification email:', emailError);
       // Не прерываем регистрацию, но предупреждаем пользователя
     }
 
-    console.log('User registered successfully, verification required:', { id: user.id, username: user.username });
 
     res.status(201).json({
       message: 'Регистрация успешна. Проверьте почту для подтверждения.',
@@ -113,7 +111,6 @@ export const register = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
     res.status(500).json({ message: 'Ошибка сервера при регистрации' });
   }
 };
@@ -162,7 +159,6 @@ export const verifyEmail = async (req: Request, res: Response) => {
       { expiresIn: '7d' }
     );
 
-    console.log('Email verified successfully:', { id: user.id, username: user.username });
 
     res.status(200).json({
       message: 'Email успешно подтвержден',
@@ -177,55 +173,44 @@ export const verifyEmail = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Verification error:', error);
     res.status(500).json({ message: 'Ошибка верификации email' });
   }
 };
 
 export const login = async (req: Request, res: Response) => {
   try {
-    console.log('Login request body:', req.body);
     
     // Принимаем как email, так и username для входа
     const { username, email, password } = req.body;
     const loginField = username || email;
 
-    console.log('Login field:', loginField);
 
     if (!loginField || !password) {
-      console.log('Missing login field or password');
       return res.status(400).json({ message: 'Имя пользователя/email и пароль обязательны' });
     }
 
     // Ищем пользователя по email или username с проверкой верификации
-    console.log('Looking for user with:', loginField);
     const result = await pool.query(
       'SELECT id, username, email, password, email_verified, role FROM users WHERE email = $1 OR username = $1',
       [loginField]
     );
 
-    console.log('User query result rows:', result.rows.length);
 
     if (result.rows.length === 0) {
-      console.log('User not found');
       return res.status(400).json({ message: 'Неверное имя пользователя/email или пароль' });
     }
 
     const user = result.rows[0];
-    console.log('Found user:', { id: user.id, username: user.username, email: user.email, email_verified: user.email_verified });
 
     // Проверяем пароль
     const isMatch = await bcrypt.compare(password, user.password);
-    console.log('Password match:', isMatch);
     
     if (!isMatch) {
-      console.log('Password does not match');
       return res.status(400).json({ message: 'Неверное имя пользователя/email или пароль' });
     }
 
     // Проверяем верификацию email
     if (!user.email_verified) {
-      console.log('Email not verified - sending verification code');
       
       // Генерируем и отправляем код верификации
       const code = generateVerificationCode();
@@ -243,9 +228,7 @@ export const login = async (req: Request, res: Response) => {
       // Отправляем email
       try {
         await sendVerificationCode(user.email, code);
-        console.log('Verification code sent to:', user.email);
       } catch (emailError) {
-        console.error('Error sending verification code:', emailError);
       }
 
       return res.status(403).json({ 
@@ -273,10 +256,8 @@ export const login = async (req: Request, res: Response) => {
       }
     };
 
-    console.log('Sending successful login response');
     res.json(response);
   } catch (error) {
-    console.error('Login error:', error);
     res.status(500).json({ message: 'Ошибка сервера при входе' });
   }
 };
@@ -309,7 +290,6 @@ export const getProfile = async (req: Request & { user?: any }, res: Response) =
       }
     });
   } catch (error) {
-    console.error('Get profile error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
@@ -334,7 +314,6 @@ export const forgotPassword = async (req: Request, res: Response) => {
     }
     
     const user = result.rows[0];
-    console.log('Found user for password reset:', { id: user.id, username: user.username, email: user.email });
     
     // Генерируем и сохраняем новый код для сброса пароля
     const code = generateVerificationCode();
@@ -352,14 +331,11 @@ export const forgotPassword = async (req: Request, res: Response) => {
     // Отправляем email с кодом сброса
     try {
       await sendVerificationCode(email, code);
-      console.log('Password reset code sent to:', email);
       res.json({ message: 'Код для сброса пароля отправлен на email' });
     } catch (emailError) {
-      console.error('Error sending password reset code:', emailError);
       res.status(500).json({ message: 'Ошибка при отправке email' });
     }
   } catch (error) {
-    console.error('Forgot password error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
@@ -395,10 +371,8 @@ export const resetPassword = async (req: Request, res: Response) => {
       [hashedPassword, email]
     );
     
-    console.log('Password reset successfully for:', email);
     res.json({ message: 'Пароль успешно изменен' });
   } catch (error) {
-    console.error('Reset password error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
@@ -422,7 +396,6 @@ export const resendVerificationCode = async (req: Request, res: Response) => {
     }
     
     const user = result.rows[0];
-    console.log('Found user for resend:', { id: user.id, username: user.username, email: user.email });
     
     // Генерируем и сохраняем новый код
     const code = generateVerificationCode();
@@ -440,14 +413,11 @@ export const resendVerificationCode = async (req: Request, res: Response) => {
     // Отправляем email
     try {
       await sendVerificationCode(email, code);
-      console.log('Verification code sent to:', email);
     } catch (emailError) {
-      console.error('Error sending verification code:', emailError);
     }
     
     res.json({ message: 'Код верификации отправлен повторно' });
   } catch (error) {
-    console.error('Resend verification code error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };

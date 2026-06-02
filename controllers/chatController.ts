@@ -42,11 +42,9 @@ interface ChatWithDetails {
 export const getUserChats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId || req.user?.id;
-    console.log('getUserChats - userId:', userId, 'req.user:', req.user);
     
     if (!req.user || !userId) {
       // Возвращаем пустой массив если не авторизован
-      console.log('getUserChats - not authorized, returning empty array');
       return res.json({ chats: [] });
     }
 
@@ -109,7 +107,6 @@ export const getUserChats = async (req: AuthRequest, res: Response) => {
 
     res.json({ chats });
   } catch (error) {
-    console.error('Get user chats error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения чатов',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -181,7 +178,6 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
 
     res.json({ messages });
   } catch (error) {
-    console.error('Get chat messages error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения сообщений',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -289,7 +285,6 @@ export const createOrGetChat = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Create or get chat error:', error);
     res.status(500).json({ 
       message: 'Ошибка создания чата',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -358,7 +353,6 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({ message });
   } catch (error) {
-    console.error('Send message error:', error);
     res.status(500).json({ 
       message: 'Ошибка отправки сообщения',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -415,7 +409,6 @@ export const getUserInfo = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Get user info error:', error);
     res.status(500).json({ 
       message: 'Ошибка получения информации о пользователе',
       error: error instanceof Error ? error.message : 'Unknown error'

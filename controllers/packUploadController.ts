@@ -62,8 +62,6 @@ export const uploadPackLoops = async (req: AuthRequest, res: Response) => {
   
   uploadMiddleware(req, res, async (err) => {
     if (err) {
-      console.error('Upload error:', err);
-      console.error('Upload error details:', {
         message: err.message,
         code: err.code,
         storageErrors: err.storageErrors,
@@ -92,7 +90,6 @@ export const uploadPackLoops = async (req: AuthRequest, res: Response) => {
         const key = 'C';
         const genre = 'Unknown';
 
-        console.log(`Processing file ${i + 1}:`, file.originalname);
 
         // Создаем запись о лупе в базе данных
         const loopQuery = `
@@ -113,7 +110,6 @@ export const uploadPackLoops = async (req: AuthRequest, res: Response) => {
         ]);
 
         uploadedLoops.push(loopResult.rows[0]);
-        console.log(`Created loop record:`, loopResult.rows[0]);
       }
 
       res.json({
@@ -121,7 +117,6 @@ export const uploadPackLoops = async (req: AuthRequest, res: Response) => {
         loops: uploadedLoops
       });
     } catch (error) {
-      console.error('Error uploading pack loops:', error);
       res.status(500).json({ error: 'Failed to upload loops' });
     }
   });
@@ -133,7 +128,6 @@ export const uploadVoiceTag = async (req: AuthRequest, res: Response) => {
   
   uploadMiddleware(req, res, async (err) => {
     if (err) {
-      console.error('Upload error:', err);
       return res.status(400).json({ error: err.message });
     }
 
@@ -151,7 +145,6 @@ export const uploadVoiceTag = async (req: AuthRequest, res: Response) => {
         size: file.size
       });
     } catch (error) {
-      console.error('Error uploading voice tag:', error);
       res.status(500).json({ error: 'Failed to upload voice tag' });
     }
   });
@@ -163,7 +156,6 @@ export const uploadTextFile = async (req: AuthRequest, res: Response) => {
   
   uploadMiddleware(req, res, async (err) => {
     if (err) {
-      console.error('Upload error:', err);
       return res.status(400).json({ error: err.message });
     }
 
@@ -185,7 +177,6 @@ export const uploadTextFile = async (req: AuthRequest, res: Response) => {
         content: textContent
       });
     } catch (error) {
-      console.error('Error uploading text file:', error);
       res.status(500).json({ error: 'Failed to upload text file' });
     }
   });
@@ -302,7 +293,6 @@ export const createPackWithFiles = async (req: AuthRequest, res: Response) => {
     res.status(201).json(pack);
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error creating pack with files:', error);
     res.status(500).json({ error: 'Failed to create pack' });
   } finally {
     client.release();
@@ -322,7 +312,6 @@ export const getTempUploadedFiles = async (req: AuthRequest, res: Response) => {
       text_file: null
     });
   } catch (error) {
-    console.error('Error getting temp files:', error);
     res.status(500).json({ error: 'Failed to get temp files' });
   }
 };

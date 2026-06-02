@@ -3,8 +3,8 @@ import { AuthRequest } from '../middleware/auth';
 import pool from '../config/database';
 
 // Конфигурация Crypto Pay
-const CRYPTO_PAY_API_KEY = '587082:AAIgjoqj1WcoCAY0TakHYyls5MCF9qcXA2S';
-const CRYPTO_PAY_API_URL = 'https://pay.crypt.bot/api';
+const CRYPTO_PAY_API_KEY = process.env.CRYPTO_PAY_API_KEY!;
+const CRYPTO_PAY_API_URL = process.env.CRYPTO_PAY_API_URL || 'https://pay.crypt.bot/api';
 
 // Создать invoice для пополнения коинов
 export const createTopUpInvoice = async (req: AuthRequest, res: Response) => {
@@ -43,7 +43,6 @@ export const createTopUpInvoice = async (req: AuthRequest, res: Response) => {
 
     const invoiceResult = await response.json();
 
-    console.log('Crypto Pay response:', invoiceResult);
 
     if (invoiceResult.ok !== true) {
       throw new Error(invoiceResult.error || 'Failed to create invoice');
@@ -79,7 +78,6 @@ export const createTopUpInvoice = async (req: AuthRequest, res: Response) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error creating top-up invoice:', error);
     res.status(500).json({ error: 'Failed to create top-up invoice' });
   } finally {
     client.release();
@@ -122,7 +120,6 @@ export const getInvoiceStatus = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Error getting invoice status:', error);
     res.status(500).json({ error: 'Failed to get invoice status' });
   }
 };
@@ -130,7 +127,7 @@ export const getInvoiceStatus = async (req: Request, res: Response) => {
 // Обработка вебхуков от Crypto Pay
 export const handleWebhook = async (req: Request, res: Response) => {
   const client = await pool.connect();
-  
+
   try {
     const { update_type, payload } = req.body;
 
@@ -178,7 +175,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         await client.query('COMMIT');
 
-        console.log('Top-up completed:', invoiceId, 'User credited:', topUp.amount, 'coins');
         return res.json({ ok: true });
       }
 
@@ -191,7 +187,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
       const orderResult = await client.query(orderQuery, [invoiceId]);
 
       if (orderResult.rows.length === 0) {
-        console.log('Order not found in database:', invoiceId);
         return res.json({ ok: true });
       }
 
@@ -233,14 +228,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
       await client.query('COMMIT');
 
-      console.log('Order paid:', invoiceId, 'Seller credited:', order.seller_earnings);
     }
 
     res.json({ ok: true });
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error handling webhook:', error);
     res.status(500).json({ error: 'Failed to handle webhook' });
   } finally {
     client.release();
@@ -268,7 +261,6 @@ export const getUserPayments = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Error getting user orders:', error);
     res.status(500).json({ error: 'Failed to get orders' });
   }
 };

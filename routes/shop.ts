@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth';
+import { checkAdminIP } from '../middleware/ipWhitelist';
 import pool from '../config/database';
 import {
   getPacks,
@@ -91,11 +92,11 @@ router.delete('/:id', deletePack);
 router.get('/:id/download', downloadPack);
 
 // Ручное управление балансом (только для админа)
-router.post('/admin/credit-balance', manualCreditBalance);
-router.post('/admin/debit-balance', manualDebitBalance);
-router.get('/admin/search-users', searchUsers);
-router.get('/admin/balance/:username', getUserBalanceByUsername);
-router.get('/admin/packs/all', getAllPacksAdmin);
+router.post('/admin/credit-balance', authenticate, checkAdminIP, manualCreditBalance);
+router.post('/admin/debit-balance', authenticate, checkAdminIP, manualDebitBalance);
+router.get('/admin/search-users', authenticate, checkAdminIP, searchUsers);
+router.get('/admin/balance/:username', authenticate, checkAdminIP, getUserBalanceByUsername);
+router.get('/admin/packs/all', authenticate, checkAdminIP, getAllPacksAdmin);
 
 // Crypto Pay защищенные роуты
 router.post('/crypto/topup', createTopUpInvoice);

@@ -48,7 +48,6 @@ export const searchArtists = async (req: Request, res: Response) => {
 
     res.json({ artists });
   } catch (error) {
-    console.error('Search artists error:', error);
     res.status(500).json({ message: 'Ошибка поиска артистов' });
   }
 };
@@ -103,7 +102,6 @@ export const searchLoops = async (req: Request, res: Response) => {
 
     res.json({ loops });
   } catch (error) {
-    console.error('Search loops error:', error);
     res.status(500).json({ message: 'Ошибка поиска лупов' });
   }
 };

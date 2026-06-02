@@ -105,7 +105,6 @@ export const getPacks = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting packs:', error);
     res.status(500).json({ error: 'Failed to get packs' });
   }
 };
@@ -164,7 +163,6 @@ export const getPackById = async (req: Request, res: Response) => {
       ratings: ratingsResult.rows
     });
   } catch (error) {
-    console.error('Error getting pack:', error);
     res.status(500).json({ error: 'Failed to get pack' });
   }
 };
@@ -174,19 +172,15 @@ export const createPack = async (req: AuthRequest, res: Response) => {
   const client = await pool.connect();
 
   try {
-    console.log('=== createPack called ===');
     const { title, description, price, voice_tag } = req.body;
     const userId = req.user!.userId;
-    console.log('User ID:', userId, 'Title:', title, 'Price:', price);
 
     if (!userId) {
-      console.log('No user ID found');
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
     // Проверяем минимальную цену пака
     if (!price || price < 400) {
-      console.log('Price too low:', price);
       return res.status(400).json({ error: 'Minimum pack price is 400 coins' });
     }
 
@@ -259,7 +253,6 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error creating pack:', error);
     res.status(500).json({ error: 'Failed to create pack' });
   } finally {
     client.release();
@@ -273,8 +266,6 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const buyerId = req.user!.userId;
-
-    console.log('Buy pack attempt - Pack ID:', id, 'Buyer ID:', buyerId);
 
     if (!buyerId) {
       return res.status(401).json({ error: 'User not authenticated' });
@@ -333,7 +324,6 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     const balanceResult = await client.query(balanceQuery, [buyerId]);
 
     if (balanceResult.rows.length === 0) {
-      console.log('Creating user_balance for buyerId:', buyerId);
       await client.query(`
         INSERT INTO user_balance (user_id, available_balance)
         VALUES ($1, 0)
@@ -384,7 +374,6 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Pack purchased successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error buying pack:', error);
     res.status(500).json({ error: 'Failed to buy pack' });
   } finally {
     client.release();
@@ -419,7 +408,6 @@ export const getUserBalance = async (req: AuthRequest, res: Response) => {
 
     res.json(balanceResult.rows[0]);
   } catch (error) {
-    console.error('Error getting balance:', error);
     res.status(500).json({ error: 'Failed to get balance' });
   }
 };
@@ -474,7 +462,6 @@ export const createWithdrawal = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json(withdrawalResult.rows[0]);
   } catch (error) {
-    console.error('Error creating withdrawal:', error);
     res.status(500).json({ error: 'Failed to create withdrawal' });
   }
 };
@@ -483,8 +470,6 @@ export const createWithdrawal = async (req: AuthRequest, res: Response) => {
 export const getUserPacks = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
-
-    console.log('Getting packs for user:', userId);
 
     const query = `
       SELECT sp.*,
@@ -500,19 +485,9 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
     `;
 
     const result = await pool.query(query, [userId]);
-    console.log('Found purchased packs:', result.rows.length, result.rows);
-    if (result.rows.length > 0) {
-      console.log('First pack seller info:', {
-        seller_username: result.rows[0].seller_username,
-        seller_hashtag: result.rows[0].seller_hashtag,
-        pack_id: result.rows[0].id,
-        pack_user_id: result.rows[0].user_id
-      });
-    }
 
     res.json({ packs: result.rows });
   } catch (error) {
-    console.error('Error getting user packs:', error);
     res.status(500).json({ error: 'Failed to get user packs' });
   }
 };
@@ -520,9 +495,7 @@ export const getUserPacks = async (req: AuthRequest, res: Response) => {
 // Получить паки созданные пользователем
 export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
   try {
-    console.log('=== getUserCreatedPacks called ===');
     const userId = req.user!.userId;
-    console.log('User ID:', userId);
 
     const query = `
       SELECT sp.*,
@@ -535,11 +508,9 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
     `;
 
     const result = await pool.query(query, [userId]);
-    console.log('Found packs:', result.rows.length);
 
     res.json({ packs: result.rows });
   } catch (error) {
-    console.error('Error in getUserCreatedPacks:', error);
     res.status(500).json({ error: 'Failed to get user created packs' });
   }
 };
@@ -548,8 +519,6 @@ export const getUserCreatedPacks = async (req: AuthRequest, res: Response) => {
 export const getTransactionHistory = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
-
-    console.log('Getting transaction history for user:', userId);
 
     const query = `
       SELECT
@@ -605,11 +574,9 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
     `;
 
     const result = await pool.query(query, [userId]);
-    console.log('Found transactions:', result.rows.length, 'for user:', userId);
 
     res.json({ transactions: result.rows });
   } catch (error) {
-    console.error('Error getting transaction history:', error);
     res.status(500).json({ error: 'Failed to get transaction history' });
   }
 };
@@ -620,8 +587,6 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { rating, review } = req.body;
     const userId = req.user!.userId;
-
-    console.log('Rate pack attempt - Pack ID:', id, 'User ID:', userId, 'Rating:', rating);
 
     // Проверяем что пользователь купил пак (либо через orders, либо через user_packs)
     const purchaseCheckQuery = `
@@ -635,8 +600,6 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
     `;
     const purchaseCheckResult = await pool.query(purchaseCheckQuery, [id, userId]);
 
-    console.log('Purchase check result:', purchaseCheckResult.rows.length);
-
     if (purchaseCheckResult.rows.length === 0) {
       return res.status(403).json({ error: 'You must purchase the pack to rate it' });
     }
@@ -648,8 +611,6 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
       WHERE pack_id = $1 AND user_id = $2
     `;
     const existingRatingResult = await pool.query(existingRatingQuery, [id, userId]);
-
-    console.log('Existing rating:', existingRatingResult.rows[0]);
 
     // Добавляем или обновляем рейтинг
     const ratingQuery = `
@@ -663,11 +624,8 @@ export const ratePack = async (req: AuthRequest, res: Response) => {
     `;
     const ratingResult = await pool.query(ratingQuery, [id, userId, rating, review]);
 
-    console.log('Rating saved:', ratingResult.rows[0]);
-
     res.status(201).json(ratingResult.rows[0]);
   } catch (error) {
-    console.error('Error rating pack:', error);
     res.status(500).json({ error: 'Failed to rate pack' });
   }
 };
@@ -748,7 +706,6 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
       res.download(filePath, `${pack.title}.zip`);
     }
   } catch (error) {
-    console.error('Error downloading pack:', error);
     res.status(500).json({ error: 'Failed to download pack' });
   }
 };
@@ -806,7 +763,6 @@ export const creditBalance = async (req: Request, res: Response) => {
       client.release();
     }
   } catch (error) {
-    console.error('Error crediting balance:', error);
     res.status(500).json({ error: 'Failed to credit balance' });
   }
 };
@@ -886,7 +842,6 @@ export const manualCreditBalance = async (req: AuthRequest, res: Response) => {
       client.release();
     }
   } catch (error) {
-    console.error('Error manually crediting balance:', error);
     res.status(500).json({ error: 'Failed to manually credit balance' });
   }
 };
@@ -913,7 +868,6 @@ export const getBalanceByTelegramId = async (req: Request, res: Response) => {
       pending_balance: result.rows[0].pending_balance
     });
   } catch (error) {
-    console.error('Error fetching balance by telegram ID:', error);
     res.status(500).json({ error: 'Failed to fetch balance' });
   }
 };
@@ -949,7 +903,6 @@ export const getUserBalanceByUsername = async (req: AuthRequest, res: Response) 
       total_earned: user.total_earned || 0
     });
   } catch (error) {
-    console.error('Error getting user balance by username:', error);
     res.status(500).json({ error: 'Failed to get user balance' });
   }
 };
@@ -979,7 +932,6 @@ export const searchUsers = async (req: AuthRequest, res: Response) => {
 
     res.json({ users: result.rows });
   } catch (error) {
-    console.error('Error searching users:', error);
     res.status(500).json({ error: 'Failed to search users' });
   }
 };
@@ -989,8 +941,6 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
   try {
     const { username, amount, currency } = req.body;
     const adminId = req.user!.userId;
-
-    console.log('Manual debit balance attempt - username:', username, 'amount:', amount, 'adminId:', adminId);
 
     // Проверяем что это админ
     if (req.user!.role !== 'admin') {
@@ -1069,7 +1019,6 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
       client.release();
     }
   } catch (error) {
-    console.error('Error manually debiting balance:', error);
     res.status(500).json({ error: 'Failed to manually debit balance' });
   }
 };
@@ -1089,7 +1038,6 @@ export const reportPack = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json(reportResult.rows[0]);
   } catch (error) {
-    console.error('Error reporting pack:', error);
     res.status(500).json({ error: 'Failed to report pack' });
   }
 };
@@ -1102,8 +1050,6 @@ export const deletePack = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const userId = req.user!.userId;
     const isAdmin = req.user!.role === 'admin';
-
-    console.log('Delete pack attempt - Pack ID:', id, 'User ID:', userId, 'Is Admin:', isAdmin);
 
     // Получаем информацию о паке
     const packQuery = `
@@ -1155,7 +1101,6 @@ export const deletePack = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Pack deleted successfully', pack: deleteResult.rows[0] });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error deleting pack:', error);
     res.status(500).json({ error: 'Failed to delete pack' });
   } finally {
     client.release();
@@ -1221,7 +1166,6 @@ export const getAllPacksAdmin = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting all packs:', error);
     res.status(500).json({ error: 'Failed to get packs' });
   } finally {
     client.release();

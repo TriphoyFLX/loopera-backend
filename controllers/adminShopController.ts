@@ -21,7 +21,6 @@ export const getPendingPacks = async (req: AuthRequest, res: Response) => {
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error getting pending packs:', error);
     res.status(500).json({ error: 'Failed to get pending packs' });
   }
 };
@@ -89,7 +88,6 @@ export const getPackForModeration = async (req: AuthRequest, res: Response) => {
       reports: reportsResult.rows
     });
   } catch (error) {
-    console.error('Error getting pack for moderation:', error);
     res.status(500).json({ error: 'Failed to get pack for moderation' });
   }
 };
@@ -117,7 +115,6 @@ export const approvePack = async (req: AuthRequest, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error approving pack:', error);
     res.status(500).json({ error: 'Failed to approve pack' });
   }
 };
@@ -151,7 +148,6 @@ export const rejectPack = async (req: AuthRequest, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error rejecting pack:', error);
     res.status(500).json({ error: 'Failed to reject pack' });
   }
 };
@@ -186,7 +182,6 @@ export const banUser = async (req: AuthRequest, res: Response) => {
       duration
     });
   } catch (error) {
-    console.error('Error banning user:', error);
     res.status(500).json({ error: 'Failed to ban user' });
   }
 };
@@ -214,7 +209,6 @@ export const getWithdrawals = async (req: AuthRequest, res: Response) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error getting withdrawals:', error);
     res.status(500).json({ error: 'Failed to get withdrawals' });
   }
 };
@@ -264,7 +258,6 @@ export const approveWithdrawal = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Withdrawal approved successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error approving withdrawal:', error);
     res.status(500).json({ error: 'Failed to approve withdrawal' });
   } finally {
     client.release();
@@ -300,7 +293,6 @@ export const rejectWithdrawal = async (req: AuthRequest, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error rejecting withdrawal:', error);
     res.status(500).json({ error: 'Failed to reject withdrawal' });
   }
 };
@@ -333,7 +325,6 @@ export const getReports = async (req: AuthRequest, res: Response) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error getting reports:', error);
     res.status(500).json({ error: 'Failed to get reports' });
   }
 };
@@ -365,7 +356,6 @@ export const resolveReport = async (req: AuthRequest, res: Response) => {
       resolution
     });
   } catch (error) {
-    console.error('Error resolving report:', error);
     res.status(500).json({ error: 'Failed to resolve report' });
   }
 };
@@ -422,7 +412,6 @@ export const getAllPacks = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting all packs:', error);
     res.status(500).json({ error: 'Failed to get all packs' });
   }
 };
@@ -455,7 +444,6 @@ export const deletePack = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Pack deleted successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error deleting pack:', error);
     res.status(500).json({ error: 'Failed to delete pack' });
   } finally {
     client.release();
@@ -535,7 +523,6 @@ export const getShopStats = async (req: AuthRequest, res: Response) => {
 
     res.json(stats);
   } catch (error) {
-    console.error('Error getting shop stats:', error);
     res.status(500).json({ error: 'Failed to get shop stats' });
   }
 };

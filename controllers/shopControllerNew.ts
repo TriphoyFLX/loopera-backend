@@ -7,10 +7,8 @@ export const createPackNew = async (req: AuthRequest, res: Response) => {
   const client = await pool.connect();
 
   try {
-    console.log('=== createPackNew START ===');
     const { title, description, price, voice_tag } = req.body;
     const userId = req.user!.userId;
-    console.log('User ID:', userId, 'Title:', title, 'Price:', price);
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
@@ -64,14 +62,12 @@ export const createPackNew = async (req: AuthRequest, res: Response) => {
 
     await client.query('COMMIT');
 
-    console.log('Pack created successfully:', packResult.rows[0].id);
     res.status(201).json({
       ...packResult.rows[0],
       message: 'Pack submitted for moderation'
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error creating pack:', error);
     res.status(500).json({ error: 'Failed to create pack' });
   } finally {
     client.release();
@@ -81,9 +77,7 @@ export const createPackNew = async (req: AuthRequest, res: Response) => {
 // Получить созданные паки пользователя
 export const getUserCreatedPacksNew = async (req: AuthRequest, res: Response) => {
   try {
-    console.log('=== getUserCreatedPacksNew called ===');
     const userId = req.user!.userId;
-    console.log('getUserCreatedPacksNew for userId:', userId);
 
     const query = `
       SELECT sp.*, COUNT(DISTINCT o.id) as sales_count
@@ -95,12 +89,9 @@ export const getUserCreatedPacksNew = async (req: AuthRequest, res: Response) =>
     `;
 
     const result = await pool.query(query, [userId]);
-    console.log('Found packs:', result.rows.length);
-    console.log('Packs data:', JSON.stringify(result.rows));
 
     res.json({ packs: result.rows });
   } catch (error) {
-    console.error('Error in getUserCreatedPacksNew:', error);
     res.status(500).json({ error: 'Failed to get user created packs' });
   }
 };
@@ -153,7 +144,6 @@ export const getApprovedPacksNew = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting approved packs:', error);
     res.status(500).json({ error: 'Failed to get packs' });
   }
 };
@@ -166,7 +156,6 @@ export const buyPackNew = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const buyerId = req.user!.userId;
 
-    console.log('buyPackNew - Pack ID:', id, 'Buyer ID:', buyerId);
 
     const packQuery = `
       SELECT sp.*, u.username as seller_name
@@ -243,7 +232,6 @@ export const buyPackNew = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Pack purchased successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error buying pack:', error);
     res.status(500).json({ error: 'Failed to buy pack' });
   } finally {
     client.release();
@@ -271,7 +259,6 @@ export const getUserPacksNew = async (req: AuthRequest, res: Response) => {
     const result = await pool.query(query, [userId]);
     res.json({ packs: result.rows });
   } catch (error) {
-    console.error('Error getting user packs:', error);
     res.status(500).json({ error: 'Failed to get user packs' });
   }
 };
@@ -309,7 +296,6 @@ export const downloadPackNew = async (req: AuthRequest, res: Response) => {
 
     res.json({ downloadUrl: pack.archive_url, title: pack.title });
   } catch (error) {
-    console.error('Error downloading pack:', error);
     res.status(500).json({ error: 'Failed to download pack' });
   }
 };
