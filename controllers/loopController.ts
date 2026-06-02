@@ -301,14 +301,8 @@ export const uploadLoop = [
   upload.single('loop'),
   async (req: AuthRequest, res: Response) => {
     let uploadedFilePath: string | null = null;
-    
-    try {
-        originalname: req.file.originalname,
-        filename: req.file.filename,
-        size: req.file.size,
-        mimetype: req.file.mimetype
-      } : 'No file');
 
+    try {
       // Проверка авторизации
       const userId = req.user?.userId || req.user?.id;
       
