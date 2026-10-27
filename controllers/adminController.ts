@@ -1,7 +1,40 @@
 import type { Request, Response } from 'express';
+import multer from 'multer';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import pool from '../config/database.js';
 import { adminSetUserPlan } from '../services/subscriptionService.js';
 import type { BillingPeriod, PlanSlug } from '../services/planCatalog.js';
+import { persistMulterFile } from '../services/objectStorage.js';
+
+const COVER_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const COVER_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+const coverStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const uploadDir = join(process.cwd(), 'uploads', 'loops', 'covers');
+    if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const ext = file.originalname.split('.').pop()?.toLowerCase() || 'jpg';
+    cb(null, `cover-${uniqueSuffix}.${ext}`);
+  },
+});
+
+export const uploadLoopCoverMulter = multer({
+  storage: coverStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    const ok =
+      COVER_MIMES.includes(file.mimetype) ||
+      (ext != null && COVER_EXTS.includes(ext));
+    if (ok) return cb(null, true);
+    cb(new Error('Обложка: только JPG, PNG, WEBP или GIF'));
+  },
+}).single('cover');
 
 export const getAdminStats = async (req: Request, res: Response) => {
   try {
@@ -206,8 +239,8 @@ export const getAllLoops = async (req: Request, res: Response) => {
     const offset = (page - 1) * limit;
 
     const loopsQuery = `
-      SELECT l.id, l.title, l.filename, l.file_size, l.bpm, l.key, 
-             l.genre, l.created_at, l.duration,
+      SELECT l.id, l.title, l.filename, l.file_size, l.bpm, l.key,
+             l.genre, l.created_at, l.duration, l.cover_url,
              u.username as artist_name, u.email as artist_email
       FROM loops l
       JOIN users u ON l.user_id = u.id
@@ -263,6 +296,44 @@ export const deleteLoop = async (req: Request, res: Response) => {
     res.json({ message: 'Loop deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete loop' });
+  }
+};
+
+export const updateLoopCover = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'Invalid loop id' });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'Cover file is required (field: cover)' });
+    }
+
+    const loopCheck = await pool.query('SELECT id FROM loops WHERE id = $1', [id]);
+    if (loopCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loop not found' });
+    }
+
+    const coverUrl = await persistMulterFile(file, 'loops/covers');
+    const result = await pool.query(
+      `UPDATE loops
+       SET cover_url = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING id, title, cover_url`,
+      [coverUrl, id],
+    );
+
+    return res.json({
+      message: 'Cover updated',
+      loop: result.rows[0],
+    });
+  } catch (error) {
+    console.error('updateLoopCover error:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to update cover',
+    });
   }
 };
 

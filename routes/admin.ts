@@ -6,6 +6,8 @@ import {
   getAllUsers,
   getAllLoops,
   deleteLoop,
+  updateLoopCover,
+  uploadLoopCoverMulter,
   banUser,
   unbanUser,
   setUserPlan,
@@ -36,6 +38,19 @@ router.use(authenticate);
 router.get('/stats', requireAnyStaff, getAdminStats);
 router.get('/loops', requireAnyStaff, getAllLoops);
 router.delete('/loops/:id', requireAnyStaff, deleteLoop);
+router.post(
+  '/loops/:id/cover',
+  requireAnyStaff,
+  (req, res, next) => {
+    uploadLoopCoverMulter(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message || 'Upload failed' });
+      }
+      next();
+    });
+  },
+  updateLoopCover,
+);
 
 // Notifications (admin + manager)
 router.get('/notifications', requireAnyStaff, adminListNotifications);
