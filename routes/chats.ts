@@ -4,6 +4,7 @@ import {
   getUserChats,
   getChatMessages,
   createOrGetChat,
+  getOrCreateSupportChat,
   sendMessage,
   getUserInfo
 } from '../controllers/chatController.js';
@@ -19,13 +20,17 @@ router.use(authenticate);
 // Получение всех чатов пользователя
 router.get('/', getUserChats);
 
-// Получение сообщений конкретного чата
-router.get('/:chatId/messages', getChatMessages);
+// Чат техподдержки с админом (до /:chatId)
+router.post('/support', getOrCreateSupportChat);
+router.get('/support', getOrCreateSupportChat);
 
 // Создание или получение существующего чата
 router.post('/create', createOrGetChat);
 
 // Отправка сообщения
 router.post('/send', sendMessage);
+
+// Получение сообщений конкретного чата
+router.get('/:chatId/messages', getChatMessages);
 
 export default router;

@@ -1,59 +1,39 @@
 # Base image
 FROM node:20-alpine AS base
 
-# Install dependencies for Alpine
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    curl
+RUN apk add --no-cache python3 make g++ curl
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
+RUN npm ci && npm cache clean --force
 
-# Install all dependencies
-RUN npm install && npm cache clean --force
-
-# Copy source code
 COPY . .
+RUN npm run build
 
-# Production stage
+# Production stage — compiled JS only
 FROM node:20-alpine AS production
 
-# Install runtime dependencies
-RUN apk add --no-cache \
-    curl \
+RUN apk add --no-cache curl \
     && addgroup -g 1001 -S nodejs \
     && adduser -S nodejs -u 1001
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Install all dependencies (including tsx for runtime TypeScript execution)
-RUN npm install && npm cache clean --force
-
-# Copy source code
-COPY --from=base --chown=nodejs:nodejs /app ./
-
-# Copy config directory
+COPY --from=base --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=base --chown=nodejs:nodejs /app/config ./config
 
-# Create uploads directory with proper permissions
-RUN mkdir -p uploads/loops && chown -R nodejs:nodejs uploads
+RUN mkdir -p uploads/loops uploads/shop uploads/avatars uploads/looptok \
+    && chown -R nodejs:nodejs uploads
 
-# Switch to non-root user
 USER nodejs
 
-# Expose port
 EXPOSE 5001
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:5001/api/health || exit 1
 
-# Start the application with tsx
-CMD ["npx", "tsx", "index.ts"]
+CMD ["node", "dist/index.js"]

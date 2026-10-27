@@ -3,19 +3,43 @@ import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/database.js';
-import { generateVerificationCode, sendVerificationCode } from '../services/emailService.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { generateVerificationCode, sendVerificationCode, sendPasswordResetCode, notifyNewRegistration } from '../services/emailService.js';
+import { getJwtSecret, JWT_EXPIRES_IN, MAX_REFRESH_AGE_MS } from '../config/jwt.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.join(__dirname, '..', '..');
+export const createAuthToken = (user: {
+  id: number;
+  username: string;
+  email: string;
+  role?: string | null;
+}) =>
+  jwt.sign(
+    {
+      userId: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role || 'user',
+    },
+    getJwtSecret(),
+    { expiresIn: JWT_EXPIRES_IN },
+  );
 
-import('dotenv').then(dotenv => {
-  dotenv.config({ path: path.join(projectRoot, '.env') });
+export const formatAuthUser = (user: {
+  id: number;
+  username: string;
+  email: string;
+  role?: string | null;
+  onboarding_completed?: boolean | null;
+  created_at?: string | Date;
+  avatar_url?: string | null;
+}) => ({
+  id: user.id,
+  username: user.username,
+  email: user.email,
+  role: user.role || 'user',
+  onboarding_completed: !!user.onboarding_completed,
+  avatar_url: user.avatar_url || null,
+  ...(user.created_at ? { created_at: user.created_at } : {}),
 });
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -99,6 +123,11 @@ export const register = async (req: Request, res: Response) => {
       // Не прерываем регистрацию, но предупреждаем пользователя
     }
 
+    void notifyNewRegistration({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+    });
 
     res.status(201).json({
       message: 'Регистрация успешна. Проверьте почту для подтверждения.',
@@ -142,7 +171,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     // Обновляем статус верификации пользователя
     const result = await pool.query(
-      'UPDATE users SET email_verified = TRUE WHERE email = $1 RETURNING id, username, email, created_at',
+      'UPDATE users SET email_verified = TRUE WHERE email = $1 RETURNING id, username, email, role, onboarding_completed, created_at',
       [email]
     );
 
@@ -152,24 +181,12 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     const user = result.rows[0];
 
-    // Создаем токен
-    const token = jwt.sign(
-      { userId: user.id, username: user.username, email: user.email, role: user.role || 'user' },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
+    const token = createAuthToken(user);
 
     res.status(200).json({
       message: 'Email успешно подтвержден',
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role || 'user',
-        created_at: user.created_at
-      }
+      user: formatAuthUser(user),
     });
 
   } catch (error) {
@@ -191,7 +208,9 @@ export const login = async (req: Request, res: Response) => {
 
     // Ищем пользователя по email или username с проверкой верификации
     const result = await pool.query(
-      'SELECT id, username, email, password, email_verified, role FROM users WHERE email = $1 OR username = $1',
+      `SELECT id, username, email, password, email_verified, role, onboarding_completed, avatar_url,
+              COALESCE(is_banned, false) AS is_banned
+       FROM users WHERE email = $1 OR username = $1`,
       [loginField]
     );
 
@@ -201,6 +220,14 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const user = result.rows[0];
+
+    if (user.is_banned) {
+      return res.status(403).json({ message: 'Аккаунт заблокирован', code: 'BANNED' });
+    }
+
+    if (!user.password) {
+      return res.status(400).json({ message: 'Для этого аккаунта используйте вход через Google' });
+    }
 
     // Проверяем пароль
     const isMatch = await bcrypt.compare(password, user.password);
@@ -238,22 +265,12 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    // Создаем токен
-    const token = jwt.sign(
-      { userId: user.id, username: user.username, email: user.email, role: user.role || 'user' },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = createAuthToken(user);
 
     const response = {
       message: 'Вход выполнен успешно',
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role || 'user'
-      }
+      user: formatAuthUser(user),
     };
 
     res.json(response);
@@ -271,7 +288,7 @@ export const getProfile = async (req: Request & { user?: any }, res: Response) =
     const userId = req.user.userId || req.user.id;
 
     const result = await pool.query(
-      'SELECT id, username, email, role, created_at FROM users WHERE id = $1',
+      'SELECT id, username, email, role, onboarding_completed, created_at, avatar_url FROM users WHERE id = $1',
       [userId]
     );
 
@@ -282,15 +299,66 @@ export const getProfile = async (req: Request & { user?: any }, res: Response) =
     const user = result.rows[0];
 
     res.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        createdAt: user.created_at
-      }
+      user: formatAuthUser(user),
     });
   } catch (error) {
     res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.header('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({ message: 'Токен не предоставлен.' });
+    }
+
+    let decoded: jwt.JwtPayload;
+    try {
+      decoded = jwt.verify(token, getJwtSecret()) as jwt.JwtPayload;
+    } catch (error) {
+      if (!(error instanceof jwt.TokenExpiredError)) {
+        return res.status(401).json({ message: 'Сессия недействительна. Войдите в аккаунт снова.' });
+      }
+
+      decoded = jwt.verify(token, getJwtSecret(), { ignoreExpiration: true }) as jwt.JwtPayload;
+      const expiredAt = (decoded.exp || 0) * 1000;
+      if (!expiredAt || Date.now() - expiredAt > MAX_REFRESH_AGE_MS) {
+        return res.status(401).json({ message: 'Сессия истекла. Войдите в аккаунт снова.' });
+      }
+    }
+
+    const userId = decoded.userId || decoded.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Сессия недействительна. Войдите в аккаунт снова.' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, username, email, role, onboarding_completed, created_at,
+              COALESCE(is_banned, false) AS is_banned
+       FROM users WHERE id = $1`,
+      [userId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ message: 'Пользователь не найден. Войдите в аккаунт снова.' });
+    }
+
+    const user = result.rows[0];
+    if (user.is_banned) {
+      return res.status(403).json({ message: 'Аккаунт заблокирован', code: 'BANNED' });
+    }
+    const newToken = createAuthToken(user);
+
+    res.json({
+      message: 'Сессия обновлена',
+      token: newToken,
+      user: formatAuthUser(user),
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Ошибка обновления сессии' });
   }
 };
 
@@ -330,7 +398,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     
     // Отправляем email с кодом сброса
     try {
-      await sendVerificationCode(email, code);
+      await sendPasswordResetCode(email, code);
       res.json({ message: 'Код для сброса пароля отправлен на email' });
     } catch (emailError) {
       res.status(500).json({ message: 'Ошибка при отправке email' });

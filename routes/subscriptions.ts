@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.js';
 import {
   getUserSubscriptions,
   addSubscription,
@@ -9,8 +9,8 @@ import {
 
 const router = express.Router();
 
-// Получение лупов от подписанных артистов (без авторизации, вернет пустой массив если не авторизован)
-router.get('/loops', getSubscribedLoops);
+// Лента от подписанных лупмейкеров (опциональный токен)
+router.get('/loops', optionalAuthenticate, getSubscribedLoops);
 
 // Все остальные маршруты требуют аутентификации
 router.use(authenticate);

@@ -1,34 +1,30 @@
 import { Router } from 'express';
-import { uploadLoop, getUserLoops, getAllLoops, deleteLoop, getPopularHashtags, getRandomLoops, getUserStats, getUserStatsHistory, trackTelegramClick } from '../controllers/loopController.js';
-import { authenticate } from '../middleware/auth.js';
+import { uploadLoop, getUserLoops, getLoopsByUser, getAllLoops, deleteLoop, getPopularHashtags, getRandomLoops, getUserStats, getUserStatsHistory, trackTelegramClick, trackLoopPlay, getForYouLoops, downloadLoop, getLoopById, getLoopComments, addLoopComment, toggleLoopCommentLike } from '../controllers/loopController.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.js';
 
 const router = Router();
 
 // Загрузка лупа (требует авторизации)
 router.post('/upload', authenticate, uploadLoop);
 
-// Получение статистики пользователя (требует авторизации)
+// Static paths before /:id/*
 router.get('/stats', authenticate, getUserStats);
-
-// Получение истории статистики (требует авторизации)
 router.get('/stats/history', authenticate, getUserStatsHistory);
-
-// Отслеживание клика по Telegram (требует авторизации)
 router.post('/telegram-click/:loopId', authenticate, trackTelegramClick);
-
-// Получение лупов текущего пользователя (требует авторизации)
 router.get('/my', authenticate, getUserLoops);
-
-// Получение всех лупов (публичный)
+router.get('/for-you', authenticate, getForYouLoops);
+router.get('/hashtags/popular', getPopularHashtags);
+router.get('/random', getRandomLoops);
+router.get('/user/:userId', getLoopsByUser);
 router.get('/', getAllLoops);
 
-// Получение популярных хэштегов (публичный)
-router.get('/hashtags/popular', getPopularHashtags);
-
-// Получение случайных лупов (публичный)
-router.get('/random', getRandomLoops);
-
-// Удаление лупа (требует авторизации)
+// Parameterized
+router.get('/:id/comments', optionalAuthenticate, getLoopComments);
+router.post('/:id/comments', authenticate, addLoopComment);
+router.post('/comments/:commentId/like', authenticate, toggleLoopCommentLike);
+router.post('/:id/play', optionalAuthenticate, trackLoopPlay);
+router.get('/:id/download', authenticate, downloadLoop);
+router.get('/:id', getLoopById);
 router.delete('/:id', authenticate, deleteLoop);
 
 export default router;

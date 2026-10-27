@@ -8,6 +8,7 @@ export interface ILoop {
   bpm?: number;
   key?: string;
   genre?: string;
+  mood?: string;
   tags?: string[];
   user_id: number;
   created_at: Date;
@@ -19,6 +20,7 @@ export interface CreateLoopRequest {
   bpm?: number;
   key?: string;
   genre?: string;
+  mood?: string;
   tags?: string[];
 }
 
@@ -32,6 +34,7 @@ export interface LoopResponse {
   bpm?: number;
   key?: string;
   genre?: string;
+  mood?: string;
   tags?: string[];
   user_id: number;
   created_at: Date;

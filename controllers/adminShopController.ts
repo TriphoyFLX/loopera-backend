@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middleware/auth';
+import { enrichPackWithPricing } from '../services/packPricingService';
 
 // Получить паки на модерации
 export const getPendingPacks = async (req: AuthRequest, res: Response) => {
@@ -81,12 +82,18 @@ export const getPackForModeration = async (req: AuthRequest, res: Response) => {
     `;
     const reportsResult = await pool.query(reportsQuery, [pack.user_id]);
 
-    res.json({
+    const payload: Record<string, unknown> = {
       ...pack,
       loops: loopsResult.rows,
       user_stats: userStatsResult.rows[0],
       reports: reportsResult.rows
-    });
+    };
+
+    if (req.staffRole === 'manager') {
+      delete payload.email;
+    }
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: 'Failed to get pack for moderation' });
   }
@@ -219,39 +226,39 @@ export const approveWithdrawal = async (req: AuthRequest, res: Response) => {
   
   try {
     const { id } = req.params;
-    const adminId = req.user!.id;
+    const adminId = req.user!.id ?? req.user!.userId;
 
-    const withdrawalQuery = `
-      SELECT *
-      FROM withdrawals
-      WHERE id = $1 AND status = 'pending'
-    `;
-    const withdrawalResult = await client.query(withdrawalQuery, [id]);
+    await client.query('BEGIN');
+
+    const withdrawalResult = await client.query(
+      `SELECT * FROM withdrawals WHERE id = $1 AND status = 'pending' FOR UPDATE`,
+      [id],
+    );
 
     if (withdrawalResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Withdrawal not found or not pending' });
     }
 
     const withdrawal = withdrawalResult.rows[0];
 
-    await client.query('BEGIN');
+    await client.query(
+      `UPDATE withdrawals
+       SET status = 'completed',
+           processed_at = CURRENT_TIMESTAMP,
+           processed_by = $1
+       WHERE id = $2`,
+      [adminId, id],
+    );
 
-    // Обновляем статус вывода
-    await client.query(`
-      UPDATE withdrawals
-      SET status = 'completed',
-          processed_at = CURRENT_TIMESTAMP,
-          processed_by = $1
-      WHERE id = $2
-    `, [adminId, id]);
-
-    // Списываем деньги с баланса пользователя
-    await client.query(`
-      UPDATE user_balance
-      SET available_balance = available_balance - $1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = $2
-    `, [withdrawal.amount, withdrawal.user_id]);
+    // Списываем зарезервированную сумму (available уже уменьшен при создании заявки)
+    await client.query(
+      `UPDATE user_balance
+       SET pending_balance = GREATEST(0, pending_balance - $1),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $2`,
+      [withdrawal.amount, withdrawal.user_id],
+    );
 
     await client.query('COMMIT');
 
@@ -266,6 +273,8 @@ export const approveWithdrawal = async (req: AuthRequest, res: Response) => {
 
 // Отклонить вывод средств
 export const rejectWithdrawal = async (req: AuthRequest, res: Response) => {
+  const client = await pool.connect();
+
   try {
     const { id } = req.params;
     const { rejection_reason } = req.body;
@@ -275,25 +284,48 @@ export const rejectWithdrawal = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Rejection reason is required' });
     }
 
-    const query = `
-      UPDATE withdrawals
-      SET status = 'rejected',
-          rejection_reason = $1,
-          processed_at = CURRENT_TIMESTAMP,
-          processed_by = $2
-      WHERE id = $3 AND status = 'pending'
-      RETURNING *
-    `;
+    await client.query('BEGIN');
 
-    const result = await pool.query(query, [rejection_reason, adminId, id]);
+    const withdrawalResult = await client.query(
+      `SELECT * FROM withdrawals WHERE id = $1 AND status = 'pending' FOR UPDATE`,
+      [id]
+    );
 
-    if (result.rows.length === 0) {
+    if (withdrawalResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Withdrawal not found or not pending' });
     }
 
-    res.json(result.rows[0]);
+    const withdrawal = withdrawalResult.rows[0];
+
+    const updateResult = await client.query(
+      `UPDATE withdrawals
+       SET status = 'rejected',
+           rejection_reason = $1,
+           processed_at = CURRENT_TIMESTAMP,
+           processed_by = $2
+       WHERE id = $3
+       RETURNING *`,
+      [rejection_reason, adminId, id]
+    );
+
+    await client.query(
+      `UPDATE user_balance
+       SET available_balance = available_balance + $1,
+           pending_balance = pending_balance - $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $2`,
+      [withdrawal.amount, withdrawal.user_id]
+    );
+
+    await client.query('COMMIT');
+
+    res.json(updateResult.rows[0]);
   } catch (error) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: 'Failed to reject withdrawal' });
+  } finally {
+    client.release();
   }
 };
 
@@ -524,5 +556,33 @@ export const getShopStats = async (req: AuthRequest, res: Response) => {
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: 'Failed to get shop stats' });
+  }
+};
+
+// Установить скидку на пак (0–100%)
+export const setPackDiscount = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const discountPercent = Number(req.body.discount_percent);
+
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+      return res.status(400).json({ error: 'discount_percent must be between 0 and 100' });
+    }
+
+    const result = await pool.query(
+      `UPDATE sound_packs
+       SET discount_percent = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING id, title, price, discount_percent`,
+      [Math.round(discountPercent), id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pack not found' });
+    }
+
+    res.json(enrichPackWithPricing(result.rows[0]));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to set pack discount' });
   }
 };

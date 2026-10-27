@@ -1,19 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import pool from '../config/database.js';
-
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        userId: number;
-        username: string;
-        email: string;
-        id: number;
-      };
-    }
-  }
-}
+import { getJwtSecret } from '../config/jwt.js';
 
 const ADMIN_EMAIL = 'roomop86@gmail.com';
 
@@ -30,7 +18,7 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, getJwtSecret()) as any;
     
     // Проверяем роль в базе данных
     pool.query('SELECT role FROM users WHERE id = $1', [decoded.userId])

@@ -1,49 +1,48 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Loopera Production Deployment Script
-# ===========================================
+cd "$(dirname "$0")"
 
-set -e
-
-echo "🚀 Starting Loopera Production Deployment..."
-
-# Check if .env.production exists
-if [ ! -f ".env.production" ]; then
-    echo "❌ .env.production file not found!"
-    echo "Please copy .env.production.example to .env.production and update values"
-    exit 1
+if [ ! -f .env.production ]; then
+  echo "Missing .env.production — copy from .env.production.example and fill secrets."
+  exit 1
 fi
 
-# Load production environment
-export $(cat .env.production | xargs)
+# shellcheck disable=SC1091
+set -a
+source .env.production
+set +a
 
-echo "📦 Building and deploying services..."
+if [ -z "${JWT_SECRET:-}" ] || [ "${#JWT_SECRET}" -lt 48 ]; then
+  echo "JWT_SECRET must be ≥48 chars (openssl rand -hex 48)"
+  exit 1
+fi
 
-# Stop existing services
-echo "🛑 Stopping existing services..."
-docker-compose down
+if [ -z "${DB_PASSWORD:-}" ]; then
+  echo "DB_PASSWORD is required"
+  exit 1
+fi
 
-# Build and start services
-echo "🔨 Building and starting services..."
-docker-compose --env-file .env.production up --build -d
+echo "[deploy] building & starting…"
+docker compose --env-file .env.production up -d --build
 
-# Wait for services to be healthy
-echo "⏳ Waiting for services to be healthy..."
-sleep 30
+echo "[deploy] waiting for health…"
+for i in $(seq 1 40); do
+  if docker compose exec -T backend curl -fsS http://localhost:5001/api/readyz >/dev/null 2>&1; then
+    echo "[deploy] backend ready"
+    break
+  fi
+  if [ "$i" -eq 40 ]; then
+    echo "[deploy] backend not ready — logs:"
+    docker compose logs --tail=80 backend
+    exit 1
+  fi
+  sleep 3
+done
 
-# Check service status
-echo "🔍 Checking service status..."
-docker-compose ps
-
-# Show logs
-echo "📋 Showing recent logs..."
-docker-compose logs --tail=50
-
-echo "✅ Deployment completed!"
+docker compose ps
 echo ""
-echo "🌐 Frontend: http://localhost"
-echo "🔧 Backend API: http://localhost:5001"
-echo "🗄️  PgAdmin: http://localhost:5050 (if enabled)"
-echo ""
-echo "📊 To check logs: docker-compose logs -f [service-name]"
-echo "🛑 To stop: docker-compose down"
+echo "Public site: https://${DOMAIN:-loopera.ru}"
+echo "Health:      https://${DOMAIN:-loopera.ru}/api/health"
+echo "Logs:        docker compose logs -f"
+echo "Stop:        docker compose down"

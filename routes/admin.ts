@@ -1,36 +1,62 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { simpleAdmin } from '../middleware/simpleAdmin.js';
-import { 
-  getAdminStats, 
-  getAllUsers, 
-  getAllLoops, 
-  deleteLoop, 
-  banUser, 
-  unbanUser 
+import { requireAdmin, requireAnyStaff } from '../middleware/simpleAdmin.js';
+import {
+  getAdminStats,
+  getAllUsers,
+  getAllLoops,
+  deleteLoop,
+  banUser,
+  unbanUser,
+  setUserPlan,
 } from '../controllers/adminController.js';
+import {
+  getAdminArtistTypes,
+  createArtistType,
+  updateArtistType,
+  deleteArtistType,
+} from '../controllers/artistTypeController.js';
+import {
+  adminListNotifications,
+  createNotification,
+  deleteNotification,
+} from '../controllers/notificationController.js';
+import {
+  adminListHomePosts,
+  createHomePost,
+  updateHomePost,
+  deleteHomePost,
+} from '../controllers/homePostController.js';
 
 const router = express.Router();
 
-// Apply authentication middleware first, then admin middleware
-router.use(authenticate, simpleAdmin);
+router.use(authenticate);
 
-// Get admin dashboard statistics
-router.get('/stats', getAdminStats);
+// Shared: overview + loop moderation (admin + manager)
+router.get('/stats', requireAnyStaff, getAdminStats);
+router.get('/loops', requireAnyStaff, getAllLoops);
+router.delete('/loops/:id', requireAnyStaff, deleteLoop);
 
-// Get all users with pagination
-router.get('/users', getAllUsers);
+// Notifications (admin + manager)
+router.get('/notifications', requireAnyStaff, adminListNotifications);
+router.post('/notifications', requireAnyStaff, createNotification);
+router.delete('/notifications/:id', requireAnyStaff, deleteNotification);
 
-// Get all loops with pagination
-router.get('/loops', getAllLoops);
+// Home news / ads (admin + manager)
+router.get('/home-posts', requireAnyStaff, adminListHomePosts);
+router.post('/home-posts', requireAnyStaff, createHomePost);
+router.put('/home-posts/:id', requireAnyStaff, updateHomePost);
+router.delete('/home-posts/:id', requireAnyStaff, deleteHomePost);
 
-// Delete a loop
-router.delete('/loops/:id', deleteLoop);
+// Owner-only: users, bans, plans, artist types
+router.get('/users', requireAdmin, getAllUsers);
+router.post('/users/:id/ban', requireAdmin, banUser);
+router.post('/users/:id/unban', requireAdmin, unbanUser);
+router.post('/users/:id/plan', requireAdmin, setUserPlan);
 
-// Ban a user
-router.post('/users/:id/ban', banUser);
-
-// Unban a user
-router.post('/users/:id/unban', unbanUser);
+router.get('/artist-types', requireAdmin, getAdminArtistTypes);
+router.post('/artist-types', requireAdmin, createArtistType);
+router.put('/artist-types/:id', requireAdmin, updateArtistType);
+router.delete('/artist-types/:id', requireAdmin, deleteArtistType);
 
 export default router;

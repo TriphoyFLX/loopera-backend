@@ -14,6 +14,9 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'loopera',
   password: process.env.DB_PASSWORD || '',
   port: parseInt(process.env.DB_PORT || '5432'),
+  max: parseInt(process.env.DB_POOL_MAX || '20', 10) || 20,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 10_000,
 });
 
 export const initDatabase = async () => {
@@ -37,6 +40,10 @@ export const initDatabase = async () => {
       await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hashtag VARCHAR(100) UNIQUE`);
       await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)`);
       await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_skipped_at TIMESTAMP`);
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE`);
+      await pool.query(`ALTER TABLE users ALTER COLUMN password DROP NOT NULL`);
     } catch (error) {
       console.log('Columns might already exist:', error);
     }
@@ -52,12 +59,17 @@ export const initDatabase = async () => {
         bpm INTEGER,
         key VARCHAR(10),
         genre VARCHAR(100),
+        mood VARCHAR(50),
         tags JSONB,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await pool.query(`ALTER TABLE loops ADD COLUMN IF NOT EXISTS mood VARCHAR(50)`);
+    await pool.query(`ALTER TABLE loops ADD COLUMN IF NOT EXISTS instagram VARCHAR(255)`);
+    await pool.query(`ALTER TABLE loops ADD COLUMN IF NOT EXISTS telegram VARCHAR(255)`);
+    await pool.query(`ALTER TABLE loops ADD COLUMN IF NOT EXISTS cover_url VARCHAR(500)`);
 
     // Таблица для кодов верификации email
     await pool.query(`
@@ -106,7 +118,51 @@ export const initDatabase = async () => {
       )
     `);
 
-    // Таблица для подписок на артистов
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS artist_types (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        slug VARCHAR(100) UNIQUE NOT NULL,
+        aliases JSONB DEFAULT '[]'::jsonb,
+        sort_order INTEGER DEFAULT 100,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_artist_types_slug ON artist_types(slug);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_artist_types_active ON artist_types(is_active, sort_order);
+    `);
+
+    const defaultArtists = [
+      { name: 'Osamason', slug: 'osamason', aliases: ['osama', 'osamason type'], sort_order: 1 },
+      { name: 'Che', slug: 'che', aliases: ['che type'], sort_order: 2 },
+      { name: '2slimey', slug: '2slimey', aliases: ['slimey'], sort_order: 3 },
+      { name: 'Ken Carson', slug: 'kencarson', aliases: ['ken', 'xman'], sort_order: 4 },
+      { name: 'Yeat', slug: 'yeat', aliases: ['yeat type'], sort_order: 5 },
+      { name: 'Playboi Carti', slug: 'carti', aliases: ['playboi carti', 'opium'], sort_order: 6 },
+      { name: 'Destroy Lonely', slug: 'destroylonely', aliases: ['destroy lonely', 'lonely'], sort_order: 7 },
+      { name: 'Nettspend', slug: 'nettspend', aliases: ['nett'], sort_order: 8 },
+      { name: 'Lucki', slug: 'lucki', aliases: ['lucki type'], sort_order: 9 },
+      { name: 'Thxsomch', slug: 'thxsomch', aliases: ['thx'], sort_order: 10 },
+      { name: 'Tyloop', slug: 'tyloop', aliases: ['ty'], sort_order: 11 },
+      { name: 'EsDeeKid', slug: 'esdeekid', aliases: ['esdee'], sort_order: 12 },
+    ];
+
+    for (const artist of defaultArtists) {
+      await pool.query(
+        `INSERT INTO artist_types (name, slug, aliases, sort_order, is_active)
+         VALUES ($1, $2, $3::jsonb, $4, TRUE)
+         ON CONFLICT (slug) DO NOTHING`,
+        [artist.name, artist.slug, JSON.stringify(artist.aliases), artist.sort_order]
+      );
+    }
+
+    // Таблица для подписок на артистов (онбординг / вкусовые теги)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS artist_subscriptions (
         id SERIAL PRIMARY KEY,
@@ -115,6 +171,25 @@ export const initDatabase = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, artist_hashtag)
       )
+    `);
+
+    // Подписки на лупмейкеров (user → user)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_follows (
+        id SERIAL PRIMARY KEY,
+        follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        following_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(follower_id, following_id),
+        CHECK (follower_id <> following_id)
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_user_follows_follower ON user_follows(follower_id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_user_follows_following ON user_follows(following_id)
     `);
 
     // Создаем индексы для оптимизации производительности
@@ -245,6 +320,23 @@ export const initDatabase = async () => {
       ADD COLUMN IF NOT EXISTS archive_url VARCHAR(500)
     `);
     await pool.query(`
+      ALTER TABLE sound_packs
+      ADD COLUMN IF NOT EXISTS discount_percent INTEGER NOT NULL DEFAULT 0
+    `);
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'sound_packs_discount_percent_range'
+        ) THEN
+          ALTER TABLE sound_packs
+          ADD CONSTRAINT sound_packs_discount_percent_range
+          CHECK (discount_percent >= 0 AND discount_percent <= 100);
+        END IF;
+      END
+      $$;
+    `);
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS pack_loops (
         id SERIAL PRIMARY KEY,
         pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
@@ -267,19 +359,58 @@ export const initDatabase = async () => {
       )
     `);
 
-    // Таблица для заказов
+    // Таблица для заказов. Только расширяющие изменения: существующие заказы не удаляются.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS orders (
         id SERIAL PRIMARY KEY,
         pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
         buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         seller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        price INTEGER NOT NULL,
-        commission INTEGER NOT NULL,
-        seller_earnings INTEGER NOT NULL,
-        status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded')),
+        invoice_id VARCHAR(100) UNIQUE,
+        amount DECIMAL(20,8),
+        price INTEGER,
+        currency VARCHAR(10),
+        commission DECIMAL(20,8) DEFAULT 0,
+        seller_earnings DECIMAL(20,8) DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'pending',
+        paid_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS invoice_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount DECIMAL(20,8)`);
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS price INTEGER`);
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency VARCHAR(10)`);
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission DECIMAL(20,8) DEFAULT 0`);
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS seller_earnings DECIMAL(20,8) DEFAULT 0`);
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP`);
+    await pool.query(`
+      UPDATE orders
+      SET price = COALESCE(price, amount::INTEGER)
+      WHERE price IS NULL AND amount IS NOT NULL
+    `);
+    await pool.query(`
+      UPDATE orders
+      SET amount = price
+      WHERE amount IS NULL AND price IS NOT NULL
+    `);
+    await pool.query(`
+      ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check
+    `);
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'orders_status_allowed'
+        ) THEN
+          ALTER TABLE orders
+          ADD CONSTRAINT orders_status_allowed
+          CHECK (status IN ('pending', 'paid', 'completed', 'cancelled', 'refunded'));
+        END IF;
+      END
+      $$;
     `);
 
     // Таблица для заявок на вывод средств
@@ -298,18 +429,10 @@ export const initDatabase = async () => {
       )
     `);
 
-    // Удаляем старую таблицу payments если она существует (миграция на orders)
-    await pool.query(`DROP TABLE IF EXISTS payments CASCADE`);
-    
-    // Удаляем старые индексы если они существуют
-    await pool.query(`DROP INDEX IF EXISTS idx_payments_user_id`);
-    await pool.query(`DROP INDEX IF EXISTS idx_payments_pack_id`);
-    await pool.query(`DROP INDEX IF EXISTS idx_payments_invoice_id`);
-    
-    // Удаляем таблицу orders если она существует для чистой миграции
-    await pool.query(`DROP TABLE IF EXISTS orders CASCADE`);
+    await pool.query(`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS withdrawal_method VARCHAR(20) DEFAULT 'sbp'`);
+    await pool.query(`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS commission INTEGER DEFAULT 0`);
 
-    // Таблица для пополнения коинов
+    // Таблица для пополнения (legacy, ручное начисление админом)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS top_ups (
         id SERIAL PRIMARY KEY,
@@ -330,24 +453,6 @@ export const initDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_top_ups_invoice_id ON top_ups(invoice_id);
     `);
 
-    // Таблица для заказов (orders) вместо payments
-    await pool.query(`
-      CREATE TABLE orders (
-        id SERIAL PRIMARY KEY,
-        buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        pack_id INTEGER NOT NULL REFERENCES sound_packs(id) ON DELETE CASCADE,
-        seller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        invoice_id VARCHAR(100) UNIQUE NOT NULL,
-        amount DECIMAL(20,8) NOT NULL,
-        currency VARCHAR(10) NOT NULL,
-        commission DECIMAL(20,8) NOT NULL,
-        seller_earnings DECIMAL(20,8) NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'cancelled')),
-        paid_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON orders(buyer_id);
     `);
@@ -362,6 +467,12 @@ export const initDatabase = async () => {
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_orders_invoice_id ON orders(invoice_id);
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice_id_unique
+      ON orders(invoice_id)
+      WHERE invoice_id IS NOT NULL;
     `);
 
     await pool.query(`
@@ -459,6 +570,343 @@ export const initDatabase = async () => {
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+    `);
+
+    // LoopTok — short promo clips (TikTok-style feed)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_tok_posts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        loop_id INTEGER REFERENCES loops(id) ON DELETE SET NULL,
+        title VARCHAR(255) NOT NULL,
+        caption TEXT,
+        filename VARCHAR(255) NOT NULL,
+        original_name VARCHAR(255) NOT NULL,
+        file_size INTEGER NOT NULL,
+        duration DECIMAL(10,2),
+        mime_type VARCHAR(100),
+        bpm INTEGER,
+        key VARCHAR(10),
+        tags JSONB DEFAULT '[]'::jsonb,
+        view_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_tok_likes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        post_id INTEGER NOT NULL REFERENCES loop_tok_posts(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, post_id)
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_tok_comments (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER NOT NULL REFERENCES loop_tok_posts(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    try {
+      await pool.query(`ALTER TABLE loop_tok_posts ADD COLUMN IF NOT EXISTS share_count INTEGER DEFAULT 0`);
+    } catch {
+      // ignore
+    }
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_tok_created ON loop_tok_posts(created_at DESC);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_tok_user ON loop_tok_posts(user_id);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_tok_likes_post ON loop_tok_likes(post_id);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_tok_comments_post ON loop_tok_comments(post_id, created_at DESC);
+    `);
+
+    // Paid subscriptions (Free/Pro/Elite) — separate from artist_subscriptions follows
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_paid_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        plan_slug VARCHAR(20) NOT NULL,
+        billing_period VARCHAR(20) NOT NULL DEFAULT 'monthly',
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        period_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        period_end TIMESTAMP NOT NULL,
+        payment_id VARCHAR(255) UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subscription_usage (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        period_start DATE NOT NULL,
+        uploads_count INTEGER NOT NULL DEFAULT 0,
+        downloads_count INTEGER NOT NULL DEFAULT 0,
+        looptok_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, period_start)
+      )
+    `);
+
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_theme JSONB DEFAULT '{}'::jsonb`);
+    } catch {
+      // ignore
+    }
+
+    // Staff roles: user | manager | admin
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'`);
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT`);
+      await pool.query(`UPDATE users SET role = 'user' WHERE role IS NULL OR role = ''`);
+      // Owner always admin
+      await pool.query(`UPDATE users SET role = 'admin' WHERE id = 824`);
+    } catch (e) {
+      console.warn('Role column seed skipped:', e);
+    }
+
+    // Optional staff bootstrap via env only (never hardcode passwords in source).
+    // SEED_MANAGER_PASSWORD / SEED_ADMIN_PASSWORD — if set, create accounts if missing.
+    // Rotate these env values after first boot; prefer creating staff via SQL/admin UI.
+    try {
+      const bcrypt = (await import('bcryptjs')).default;
+      const seedStaff = async (opts: {
+        username: string;
+        email: string;
+        role: 'manager' | 'admin';
+        passwordEnv: string;
+      }) => {
+        const plain = process.env[opts.passwordEnv]?.trim();
+        if (!plain || plain.length < 12) return;
+        const existing = await pool.query(
+          `SELECT id, role FROM users WHERE username = $1 OR email = $2 LIMIT 1`,
+          [opts.username, opts.email],
+        );
+        if (existing.rows.length === 0) {
+          const hash = await bcrypt.hash(plain, 12);
+          await pool.query(
+            `INSERT INTO users (username, email, password, role, email_verified, onboarding_completed)
+             VALUES ($1, $2, $3, $4, TRUE, TRUE)`,
+            [opts.username, opts.email, hash, opts.role],
+          );
+          console.log(`Seeded ${opts.role} account from env:`, opts.username);
+        } else if (String(existing.rows[0].role).toLowerCase() !== opts.role) {
+          await pool.query(`UPDATE users SET role = $1 WHERE id = $2`, [
+            opts.role,
+            existing.rows[0].id,
+          ]);
+        }
+      };
+
+      await seedStaff({
+        username: process.env.SEED_MANAGER_USERNAME || 'seo_manager',
+        email: process.env.SEED_MANAGER_EMAIL || 'seo@loopera.ru',
+        role: 'manager',
+        passwordEnv: 'SEED_MANAGER_PASSWORD',
+      });
+      await seedStaff({
+        username: process.env.SEED_ADMIN_USERNAME || 'loopera_admin',
+        email: process.env.SEED_ADMIN_EMAIL || 'admin@loopera.com',
+        role: 'admin',
+        passwordEnv: 'SEED_ADMIN_PASSWORD',
+      });
+    } catch (e) {
+      console.warn('Optional staff seed skipped:', e);
+    }
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_user_paid_subs_user ON user_paid_subscriptions(user_id, status);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_subscription_usage_user ON subscription_usage(user_id, period_start);
+    `);
+
+    // Ensure platform admin has long Elite + cinematic theme
+    try {
+      const adminId = 824;
+      const adminUser = await pool.query(`SELECT id, profile_theme FROM users WHERE id = $1`, [adminId]);
+      if (adminUser.rows.length > 0) {
+        const hasActive = await pool.query(
+          `SELECT id FROM user_paid_subscriptions
+           WHERE user_id = $1 AND status = 'active' AND period_end > NOW()
+           LIMIT 1`,
+          [adminId],
+        );
+        if (hasActive.rows.length === 0) {
+          await pool.query(
+            `UPDATE user_paid_subscriptions SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+             WHERE user_id = $1 AND status = 'active'`,
+            [adminId],
+          );
+          const start = new Date();
+          const end = new Date(start.getTime() + 3650 * 24 * 60 * 60 * 1000);
+          await pool.query(
+            `INSERT INTO user_paid_subscriptions (
+              user_id, plan_slug, billing_period, status, period_start, period_end, payment_id
+            ) VALUES ($1, 'business', 'yearly', 'active', $2, $3, $4)
+            ON CONFLICT (payment_id) DO NOTHING`,
+            [adminId, start.toISOString(), end.toISOString(), `admin_seed_${adminId}`],
+          );
+        }
+        const theme = adminUser.rows[0].profile_theme;
+        const empty =
+          !theme ||
+          (typeof theme === 'object' && Object.keys(theme).length === 0);
+        if (empty) {
+          await pool.query(
+            `UPDATE users SET profile_theme = $1::jsonb WHERE id = $2`,
+            [
+              JSON.stringify({
+                accent_color: '#e8c36a',
+                layout: 'cinematic',
+                badge_style: 'business',
+                show_stats: true,
+                bio: 'Loopera · founder',
+              }),
+              adminId,
+            ],
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('Admin elite seed skipped:', e);
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(200) NOT NULL,
+        body TEXT NOT NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE
+      )
+    `);
+    await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
+    await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS kind VARCHAR(40) DEFAULT 'announcement'`);
+    await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link VARCHAR(500)`);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_notifications_target
+      ON notifications(target_user_id, created_at DESC)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_comment_likes (
+        id SERIAL PRIMARY KEY,
+        comment_id INTEGER NOT NULL REFERENCES loop_comments(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(comment_id, user_id)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_comment_likes_comment
+      ON loop_comment_likes(comment_id)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notification_reads (
+        notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (notification_id, user_id)
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_downloads (
+        id SERIAL PRIMARY KEY,
+        loop_id INTEGER NOT NULL REFERENCES loops(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_downloads_created_at
+      ON loop_downloads(created_at DESC)
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_downloads_loop_id
+      ON loop_downloads(loop_id)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_plays (
+        id SERIAL PRIMARY KEY,
+        loop_id INTEGER NOT NULL REFERENCES loops(id) ON DELETE CASCADE,
+        listener_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        listened_seconds REAL NOT NULL DEFAULT 0,
+        duration_seconds REAL,
+        completed BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_plays_loop_id
+      ON loop_plays(loop_id, created_at DESC)
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_plays_created_at
+      ON loop_plays(created_at DESC)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_comments (
+        id SERIAL PRIMARY KEY,
+        loop_id INTEGER NOT NULL REFERENCES loops(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_comments_loop_id
+      ON loop_comments(loop_id, created_at DESC)
+    `);
+
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads(user_id)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS home_posts (
+        id SERIAL PRIMARY KEY,
+        kind VARCHAR(20) NOT NULL DEFAULT 'news',
+        title VARCHAR(200) NOT NULL,
+        body TEXT NOT NULL,
+        cta_label VARCHAR(80),
+        cta_url VARCHAR(500),
+        image_url VARCHAR(500),
+        is_active BOOLEAN DEFAULT TRUE,
+        sort_order INTEGER DEFAULT 0,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_home_posts_active
+      ON home_posts(is_active, sort_order DESC, created_at DESC)
     `);
 
     console.log('Database initialized successfully');

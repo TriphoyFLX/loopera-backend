@@ -1,0 +1,6 @@
+.env.production
+.env
+uploads/
+node_modules/
+dist/
+.git/

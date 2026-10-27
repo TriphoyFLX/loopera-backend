@@ -38,6 +38,150 @@ interface ChatWithDetails {
   unread_count: number;
 }
 
+const SUPPORT_USERNAMES = ['loopera_admin', 'support', 'admin'];
+
+async function resolveSupportAdminId(excludeUserId?: number): Promise<{ id: number; username: string } | null> {
+  const byEnv = process.env.SUPPORT_ADMIN_USER_ID
+    ? parseInt(process.env.SUPPORT_ADMIN_USER_ID, 10)
+    : NaN;
+
+  if (Number.isFinite(byEnv) && byEnv > 0 && byEnv !== excludeUserId) {
+    const row = await pool.query(
+      `SELECT id, username FROM users WHERE id = $1 AND COALESCE(is_banned, false) = false LIMIT 1`,
+      [byEnv],
+    );
+    if (row.rows[0]) return row.rows[0];
+  }
+
+  const byName = await pool.query(
+    `SELECT id, username FROM users
+     WHERE username = ANY($1::text[])
+       AND COALESCE(is_banned, false) = false
+     ORDER BY CASE WHEN role = 'admin' THEN 0 ELSE 1 END, id ASC
+     LIMIT 1`,
+    [SUPPORT_USERNAMES],
+  );
+  if (byName.rows[0] && byName.rows[0].id !== excludeUserId) {
+    return byName.rows[0];
+  }
+
+  const byRole = await pool.query(
+    `SELECT id, username FROM users
+     WHERE role = 'admin' AND COALESCE(is_banned, false) = false
+       AND ($1::int IS NULL OR id <> $1)
+     ORDER BY id ASC
+     LIMIT 1`,
+    [excludeUserId ?? null],
+  );
+  return byRole.rows[0] || null;
+}
+
+async function ensureChatBetween(
+  userA: number,
+  userB: number,
+  usernameA: string,
+  usernameB: string,
+) {
+  const existing = await pool.query(
+    `SELECT id, participant1_id, participant2_id, created_at, updated_at
+     FROM chats
+     WHERE (participant1_id = $1 AND participant2_id = $2)
+        OR (participant1_id = $2 AND participant2_id = $1)
+     LIMIT 1`,
+    [userA, userB],
+  );
+
+  if (existing.rows[0]) {
+    const chat = existing.rows[0];
+    return {
+      id: chat.id,
+      participant1_id: chat.participant1_id,
+      participant2_id: chat.participant2_id,
+      created_at: chat.created_at,
+      updated_at: chat.updated_at,
+      participant1: { id: userA, username: usernameA },
+      participant2: { id: userB, username: usernameB },
+      last_message: undefined as undefined,
+      unread_count: 0,
+      is_support: true,
+    };
+  }
+
+  const created = await pool.query(
+    `INSERT INTO chats (participant1_id, participant2_id)
+     VALUES ($1, $2)
+     RETURNING id, participant1_id, participant2_id, created_at, updated_at`,
+    [userA, userB],
+  );
+  const chat = created.rows[0];
+  return {
+    id: chat.id,
+    participant1_id: chat.participant1_id,
+    participant2_id: chat.participant2_id,
+    created_at: chat.created_at,
+    updated_at: chat.updated_at,
+    participant1: { id: userA, username: usernameA },
+    participant2: { id: userB, username: usernameB },
+    last_message: undefined as undefined,
+    unread_count: 0,
+    is_support: true,
+  };
+}
+
+/** Открыть / создать чат техподдержки с админом */
+export const getOrCreateSupportChat = async (req: AuthRequest, res: Response) => {
+  try {
+    const currentUserId = req.user?.userId || req.user?.id;
+    if (!req.user || !currentUserId) {
+      return res.status(401).json({ message: 'Не авторизован' });
+    }
+
+    const support = await resolveSupportAdminId(currentUserId);
+    if (!support) {
+      return res.status(503).json({ message: 'Поддержка временно недоступна' });
+    }
+
+    if (support.id === currentUserId) {
+      return res.status(400).json({
+        message: 'Вы уже в аккаунте поддержки — отвечайте в обычных чатах',
+      });
+    }
+
+    const me = await pool.query('SELECT username FROM users WHERE id = $1', [currentUserId]);
+    const chat = await ensureChatBetween(
+      currentUserId,
+      support.id,
+      me.rows[0]?.username || req.user.username || 'user',
+      support.username,
+    );
+
+    // Welcome message once if chat is empty
+    const msgCount = await pool.query(
+      'SELECT COUNT(*)::int AS c FROM messages WHERE chat_id = $1',
+      [chat.id],
+    );
+    if ((msgCount.rows[0]?.c || 0) === 0) {
+      await pool.query(
+        `INSERT INTO messages (chat_id, sender_id, content)
+         VALUES ($1, $2, $3)`,
+        [
+          chat.id,
+          support.id,
+          'Здравствуйте! Это техподдержка Loopera. Напишите вопрос — ответим здесь.',
+        ],
+      );
+      await pool.query('UPDATE chats SET updated_at = NOW() WHERE id = $1', [chat.id]);
+    }
+
+    return res.json({ chat, support: { id: support.id, username: support.username } });
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Не удалось открыть чат поддержки',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
 // Получение всех чатов пользователя с деталями
 export const getUserChats = async (req: AuthRequest, res: Response) => {
   try {
@@ -315,7 +459,8 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
     // Проверяем, имеет ли пользователь доступ к этому чату
     const chatCheck = await pool.query(
-      'SELECT id FROM chats WHERE id = $1 AND (participant1_id = $2 OR participant2_id = $2)',
+      `SELECT id, participant1_id, participant2_id
+       FROM chats WHERE id = $1 AND (participant1_id = $2 OR participant2_id = $2)`,
       [chatId, senderId]
     );
 
@@ -341,6 +486,25 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       'UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
       [chatId]
     );
+
+    const chatRow = chatCheck.rows[0];
+    const recipientId =
+      Number(chatRow.participant1_id) === Number(senderId)
+        ? Number(chatRow.participant2_id)
+        : Number(chatRow.participant1_id);
+    const preview = String(content).trim().slice(0, 120);
+    const senderName = req.user?.username || 'Пользователь';
+
+    // Lazy import to avoid circular deps at module load
+    const { notifyUser } = await import('../services/notifyService.js');
+    void notifyUser({
+      userId: recipientId,
+      kind: 'message',
+      title: 'Новое сообщение',
+      body: `${senderName}: ${preview}`,
+      link: `/chats/${chatId}`,
+      createdBy: Number(senderId),
+    });
 
     const message: Message = {
       id: newMessage.id,
@@ -380,19 +544,19 @@ export const getUserInfo = async (req: Request, res: Response) => {
     
     const userQuery = isNumeric 
       ? `
-        SELECT id, username, created_at
+        SELECT id, username, created_at, avatar_url, hashtag, is_banned
         FROM users 
         WHERE id = $1
       `
       : `
-        SELECT id, username, created_at
+        SELECT id, username, created_at, avatar_url, hashtag, is_banned
         FROM users 
-        WHERE username = $1
+        WHERE lower(username) = lower($1)
       `;
 
-    const result = await pool.query(userQuery, [userIdStr]);
+    const result = await pool.query(userQuery, [userIdStr.replace(/^@/, '')]);
 
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0 || result.rows[0].is_banned) {
       return res.status(404).json({ 
         message: 'Пользователь не найден',
         error: 'User not found'
@@ -405,7 +569,9 @@ export const getUserInfo = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         username: user.username,
-        created_at: user.created_at
+        created_at: user.created_at,
+        avatar_url: user.avatar_url || null,
+        hashtag: user.hashtag || null,
       }
     });
   } catch (error) {

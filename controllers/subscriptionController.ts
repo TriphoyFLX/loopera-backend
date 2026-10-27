@@ -153,29 +153,23 @@ export const removeSubscription = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Получение лупов от подписанных артистов
+// Лента лупов от подписанных лупмейкеров (user_follows)
 export const getSubscribedLoops = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId || req.user?.id;
-    
-    if (!req.user || !userId) {
-      // Возвращаем пустой массив если не авторизован
-      return res.json({
-        loops: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          totalPages: 0
-        }
-      });
-    }
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = (page - 1) * limit;
 
+    if (!req.user || !userId) {
+      return res.json({
+        loops: [],
+        pagination: { page, limit, total: 0, totalPages: 0 },
+      });
+    }
+
     const query = `
-      SELECT 
+      SELECT
         l.id,
         l.title,
         l.filename,
@@ -185,39 +179,33 @@ export const getSubscribedLoops = async (req: AuthRequest, res: Response) => {
         l.key,
         l.genre,
         l.tags,
+        l.cover_url,
         l.user_id,
         l.created_at,
-        u.username as author
+        u.username AS author,
+        u.avatar_url AS author_avatar
       FROM loops l
       JOIN users u ON l.user_id = u.id
-      JOIN artist_subscriptions sub ON sub.user_id = $1
-      WHERE (
-        u.username = sub.artist_hashtag OR
-        l.genre = sub.artist_hashtag OR
-        l.tags::text LIKE '%' || sub.artist_hashtag || '%'
-      )
+      JOIN user_follows f ON f.following_id = l.user_id AND f.follower_id = $1
+      WHERE COALESCE(u.is_banned, false) = false
       ORDER BY l.created_at DESC
       LIMIT $2 OFFSET $3
     `;
 
     const countQuery = `
-      SELECT COUNT(*) as total
+      SELECT COUNT(*)::int AS total
       FROM loops l
       JOIN users u ON l.user_id = u.id
-      JOIN artist_subscriptions sub ON sub.user_id = $1
-      WHERE (
-        u.username = sub.artist_hashtag OR
-        l.genre = sub.artist_hashtag OR
-        l.tags::text LIKE '%' || sub.artist_hashtag || '%'
-      )
+      JOIN user_follows f ON f.following_id = l.user_id AND f.follower_id = $1
+      WHERE COALESCE(u.is_banned, false) = false
     `;
 
     const [loopsResult, countResult] = await Promise.all([
       pool.query(query, [userId, limit, offset]),
-      pool.query(countQuery, [userId])
+      pool.query(countQuery, [userId]),
     ]);
 
-    const total = parseInt(countResult.rows[0].total);
+    const total = countResult.rows[0]?.total ?? 0;
 
     res.json({
       loops: loopsResult.rows,
@@ -225,13 +213,13 @@ export const getSubscribedLoops = async (req: AuthRequest, res: Response) => {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit) || 0,
+      },
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Ошибка получения лупов',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };

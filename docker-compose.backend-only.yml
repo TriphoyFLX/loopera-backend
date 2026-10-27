@@ -34,6 +34,7 @@ services:
     environment:
       - NODE_ENV=production
       - DB_HOST=postgres
+      - MELODY_SERVICE_URL=http://melody:8001
     volumes:
       - uploads_data:/app/uploads
     networks:
@@ -49,6 +50,23 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  melody:
+    build:
+      context: ../melody-service
+      dockerfile: Dockerfile
+    container_name: loopera-melody
+    restart: unless-stopped
+    networks:
+      - loopera-network
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
 networks:
   loopera-network:

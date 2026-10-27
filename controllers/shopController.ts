@@ -2,9 +2,49 @@ import { Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-// import archiver from 'archiver';
+import archiver from 'archiver';
+import { randomUUID } from 'crypto';
 import pool from '../config/database';
 import { AuthRequest } from '../middleware/auth';
+import { createPayment, isYookassaConfigured } from '../services/yookassaService';
+import { buyPackLockKey, calcSaleCommission, completePackOrder } from '../services/packOrderService';
+import { enrichPackWithPricing, calcPackPricing } from '../services/packPricingService';
+import { notifyWithdrawalRequest } from '../services/emailService';
+import { resolveStaffRole } from '../middleware/simpleAdmin';
+import {
+  getSignedDownloadUrl,
+  isObjectStorageEnabled,
+  localFileExists,
+  localPathFromUploadUrl,
+  persistMulterFile,
+} from '../services/objectStorage';
+
+function resolveUploadPath(uploadUrl: string): string {
+  const relative = uploadUrl.replace(/^\/uploads\//, 'uploads/');
+  return path.join(process.cwd(), relative);
+}
+
+function sanitizePackFilename(title: string): string {
+  const name = title
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 100);
+  const base = name || 'Loopera Pack';
+  return /\.zip$/i.test(base) ? base : `${base}.zip`;
+}
+
+function setZipDownloadHeaders(res: Response, filename: string) {
+  const asciiFallback = filename
+    .replace(/[^\x20-\x7E]/g, '_')
+    .replace(/"/g, "'");
+  const encoded = encodeURIComponent(filename);
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`
+  );
+}
 
 // Настройка multer для загрузки файлов
 const storage = multer.diskStorage({
@@ -96,7 +136,7 @@ export const getPacks = async (req: Request, res: Response) => {
     const total = parseInt(countResult.rows[0].total);
 
     res.json({
-      packs: result.rows,
+      packs: result.rows.map(enrichPackWithPricing),
       pagination: {
         page,
         limit,
@@ -133,7 +173,10 @@ export const getPackById = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Pack not found' });
     }
 
-    const pack = packResult.rows[0];
+    const pack = enrichPackWithPricing(packResult.rows[0]);
+    delete pack.archive_url;
+    delete pack.voice_tag_file;
+    delete pack.text_file;
 
     // Получаем лупы в паке
     const loopsQuery = `
@@ -180,8 +223,8 @@ export const createPack = async (req: AuthRequest, res: Response) => {
     }
 
     // Проверяем минимальную цену пака
-    if (!price || price < 400) {
-      return res.status(400).json({ error: 'Minimum pack price is 400 coins' });
+    if (!price || price < 50) {
+      return res.status(400).json({ error: 'Минимальная цена пака: 50 ₽' });
     }
 
     // Проверяем наличие архива
@@ -222,12 +265,19 @@ export const createPack = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Archive must be a ZIP file' });
     }
 
+    const archiveUrl = await persistMulterFile(archiveFile, 'shop');
+    const previewUrl1 = previewFile1 ? await persistMulterFile(previewFile1, 'shop') : null;
+    const previewUrl2 = previewFile2 ? await persistMulterFile(previewFile2, 'shop') : null;
+    const voiceTagUrl = voiceTagFile ? await persistMulterFile(voiceTagFile, 'shop') : null;
+    const textFileUrl = textFile ? await persistMulterFile(textFile, 'shop') : null;
+    const coverUrl = coverFile ? await persistMulterFile(coverFile, 'shop') : null;
+
     await client.query('BEGIN');
 
     // Создаем пак
     const packQuery = `
       INSERT INTO sound_packs (title, description, price, user_id, voice_tag, status, archive_url, preview_url, preview_url_2, voice_tag_file, text_file, cover_url)
-      VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, 'approved', $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
     const packResult = await client.query(packQuery, [
@@ -236,12 +286,12 @@ export const createPack = async (req: AuthRequest, res: Response) => {
       price,
       userId,
       voice_tag,
-      `/uploads/shop/${archiveFile.filename}`,
-      previewFile1 ? `/uploads/shop/${previewFile1.filename}` : null,
-      previewFile2 ? `/uploads/shop/${previewFile2.filename}` : null,
-      voiceTagFile ? `/uploads/shop/${voiceTagFile.filename}` : null,
-      textFile ? `/uploads/shop/${textFile.filename}` : null,
-      coverFile ? `/uploads/shop/${coverFile.filename}` : null
+      archiveUrl,
+      previewUrl1,
+      previewUrl2,
+      voiceTagUrl,
+      textFileUrl,
+      coverUrl,
     ]);
     const pack = packResult.rows[0];
 
@@ -249,7 +299,7 @@ export const createPack = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({
       ...pack,
-      message: 'Pack has been sent for moderation. It will be reviewed shortly.'
+      message: 'Pack published successfully'
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -259,35 +309,45 @@ export const createPack = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Купить пак
+// Купить пак: card (ЮKassa) или balance (кошелёк Loopera)
 export const buyPack = async (req: AuthRequest, res: Response) => {
   const client = await pool.connect();
 
   try {
     const { id } = req.params;
+    const packId = parseInt(String(id), 10);
     const buyerId = req.user!.userId;
+    const paymentMethod = String(req.body?.payment_method || 'card').toLowerCase() === 'balance'
+      ? 'balance'
+      : 'card';
 
     if (!buyerId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
+    if (!Number.isFinite(packId) || packId < 1) {
+      return res.status(400).json({ error: 'Invalid pack id' });
+    }
 
-    // Получаем информацию о паке
+    await client.query('BEGIN');
+    // Serialize concurrent purchases of the same pack by the same buyer
+    await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [
+      buyPackLockKey(buyerId, packId).toString(),
+    ]);
+
     const packQuery = `
       SELECT sp.*, u.username as seller_name
       FROM sound_packs sp
       JOIN users u ON sp.user_id = u.id
       WHERE sp.id = $1 AND sp.status = 'approved'
     `;
-    const packResult = await client.query(packQuery, [id]);
+    const packResult = await client.query(packQuery, [packId]);
 
     if (packResult.rows.length === 0) {
-      // Check if pack exists but is not approved
-      const unapprovedPackQuery = `
-        SELECT status
-        FROM sound_packs
-        WHERE id = $1
-      `;
-      const unapprovedResult = await client.query(unapprovedPackQuery, [id]);
+      const unapprovedResult = await client.query(
+        `SELECT status FROM sound_packs WHERE id = $1`,
+        [packId]
+      );
+      await client.query('ROLLBACK');
       if (unapprovedResult.rows.length > 0) {
         return res.status(400).json({ error: 'Pack is not approved yet. Please wait for moderation.' });
       }
@@ -296,85 +356,214 @@ export const buyPack = async (req: AuthRequest, res: Response) => {
 
     const pack = packResult.rows[0];
 
-    // Проверяем что покупатель не продавец
     if (pack.user_id === buyerId) {
-      return res.status(400).json({ error: 'Cannot buy your own pack' });
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Нельзя купить свой пак' });
     }
 
-    // Проверяем не купил ли уже
-    const existingPackQuery = `
-      SELECT id
-      FROM user_packs
-      WHERE user_id = $1 AND pack_id = $2
-    `;
-    const existingPackResult = await client.query(existingPackQuery, [buyerId, id]);
+    if (!pack.price || pack.price < 1) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'У пака не задана цена' });
+    }
+
+    const existingPackResult = await client.query(
+      `SELECT id FROM user_packs WHERE user_id = $1 AND pack_id = $2`,
+      [buyerId, packId]
+    );
 
     if (existingPackResult.rows.length > 0) {
-      return res.status(400).json({ error: 'Вы уже приобрели этот пак. Проверьте раздел "Купленные паки" в вашем профиле.' });
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Вы уже приобрели этот пак. Проверьте раздел «Покупки» в профиле.' });
+    }
+
+    const recentPending = await client.query(
+      `SELECT id FROM orders
+       WHERE buyer_id = $1 AND pack_id = $2 AND status = 'pending'
+         AND created_at > NOW() - INTERVAL '30 minutes'
+       LIMIT 1`,
+      [buyerId, packId],
+    );
+    if (recentPending.rows.length > 0 && paymentMethod === 'card') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: 'Оплата этого пака уже создана. Завершите её или подождите несколько минут.',
+        code: 'PENDING_PAYMENT',
+      });
+    }
+
+    const pricing = calcPackPricing(pack.price, pack.discount_percent);
+    const chargePrice = pricing.final_price;
+    const { commission, sellerEarnings } = calcSaleCommission(chargePrice);
+
+    if (paymentMethod === 'balance') {
+      const debit = await client.query(
+        `UPDATE user_balance
+         SET available_balance = available_balance - $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $2 AND available_balance >= $1
+         RETURNING available_balance`,
+        [chargePrice, buyerId],
+      );
+
+      if (debit.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'Недостаточно средств на балансе. Пополните баланс или оплатите картой.',
+          code: 'INSUFFICIENT_BALANCE',
+        });
+      }
+
+      const invoiceId = `balance_${randomUUID()}`;
+      await client.query(
+        `INSERT INTO orders (pack_id, buyer_id, seller_id, invoice_id, amount, price, currency, commission, seller_earnings, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'RUB', $7, $8, 'pending')`,
+        [packId, buyerId, pack.user_id, invoiceId, chargePrice, chargePrice, commission, sellerEarnings],
+      );
+
+      const completed = await completePackOrder(client, invoiceId);
+      if (!completed.ok) {
+        await client.query('ROLLBACK');
+        return res.status(500).json({ error: 'Не удалось завершить покупку' });
+      }
+
+      await client.query('COMMIT');
+      return res.json({
+        message: 'Пак куплен',
+        payment_method: 'balance',
+        purchased: true,
+        balance: debit.rows[0].available_balance,
+      });
+    }
+
+    if (!isYookassaConfigured()) {
+      await client.query('ROLLBACK');
+      return res.status(503).json({ error: 'Платёжная система не настроена. Обратитесь к администратору.' });
+    }
+
+    // Release DB lock before calling YooKassa (network I/O)
+    const packTitle = pack.title as string;
+    const sellerId = pack.user_id as number;
+    const listPrice = pack.price as number;
+    const discountPercent = pricing.discount_percent;
+    await client.query('COMMIT');
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://loopera.ru').replace(/\/$/, '');
+    const returnUrl = `${frontendUrl}/shop/purchase/${packId}?payment=success`;
+
+    const payment = await createPayment({
+      amountRub: chargePrice,
+      description: `Loopera: ${packTitle}`,
+      returnUrl,
+      metadata: {
+        pack_id: String(packId),
+        buyer_id: String(buyerId),
+        type: 'pack_purchase',
+        list_price: String(listPrice),
+        discount_percent: String(discountPercent),
+      },
+    });
+
+    if (!payment.confirmation?.confirmation_url) {
+      return res.status(500).json({ error: 'Не удалось получить ссылку на оплату' });
     }
 
     await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [
+      buyPackLockKey(buyerId, packId).toString(),
+    ]);
 
-    // Получаем баланс покупателя
-    const balanceQuery = `
-      SELECT available_balance
-      FROM user_balance
-      WHERE user_id = $1
-    `;
-    const balanceResult = await client.query(balanceQuery, [buyerId]);
-
-    if (balanceResult.rows.length === 0) {
-      await client.query(`
-        INSERT INTO user_balance (user_id, available_balance)
-        VALUES ($1, 0)
-      `, [buyerId]);
-    }
-
-    const currentBalance = balanceResult.rows[0]?.available_balance || 0;
-
-    if (currentBalance < pack.price) {
+    const ownedAgain = await client.query(
+      `SELECT id FROM user_packs WHERE user_id = $1 AND pack_id = $2`,
+      [buyerId, packId],
+    );
+    if (ownedAgain.rows.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: `Insufficient balance. You have ${currentBalance} coins but need ${pack.price} coins.` });
+      return res.status(400).json({ error: 'Вы уже приобрели этот пак. Проверьте раздел «Покупки» в профиле.' });
     }
 
-    // Списываем деньги у покупателя
-    await client.query(`
-      UPDATE user_balance
-      SET available_balance = available_balance - $1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = $2
-    `, [pack.price, buyerId]);
-
-    // Добавляем деньги продавцу в available_balance (100% от цены, без комиссии)
-    await client.query(`
-      INSERT INTO user_balance (user_id, available_balance, total_earned)
-      VALUES ($1, $2, $2)
-      ON CONFLICT (user_id) DO UPDATE SET
-        available_balance = user_balance.available_balance + $2,
-        total_earned = user_balance.total_earned + $2,
-        updated_at = CURRENT_TIMESTAMP
-    `, [pack.user_id, pack.price]);
-
-    // Создаем заказ
-    const invoiceId = `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    await client.query(`
-      INSERT INTO orders (pack_id, buyer_id, seller_id, invoice_id, amount, currency, commission, seller_earnings, status)
-      VALUES ($1, $2, $3, $4, $5, 'coins', 0, $5, 'paid')
-    `, [id, buyerId, pack.user_id, invoiceId, pack.price]);
-
-    // Добавляем пак в список купленных паков пользователя
-    await client.query(`
-      INSERT INTO user_packs (user_id, pack_id)
-      VALUES ($1, $2)
-      ON CONFLICT (user_id, pack_id) DO NOTHING
-    `, [buyerId, id]);
+    await client.query(
+      `INSERT INTO orders (pack_id, buyer_id, seller_id, invoice_id, amount, price, currency, commission, seller_earnings, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'RUB', $7, $8, 'pending')`,
+      [packId, buyerId, sellerId, payment.id, chargePrice, chargePrice, commission, sellerEarnings]
+    );
 
     await client.query('COMMIT');
 
-    res.json({ message: 'Pack purchased successfully' });
+    res.json({
+      confirmation_url: payment.confirmation.confirmation_url,
+      payment_id: payment.id,
+      payment_method: 'card',
+    });
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore
+    }
+    console.error('buyPack error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to buy pack';
+    res.status(500).json({ error: message.includes('YooKassa') ? 'Ошибка платёжной системы. Попробуйте позже.' : 'Failed to buy pack' });
+  } finally {
+    client.release();
+  }
+};
+
+/** Пополнение баланса через ЮKassa */
+export const createBalanceTopUp = async (req: AuthRequest, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const userId = req.user!.userId;
+    const amount = Math.round(Number(req.body?.amount));
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Не авторизован' });
+    }
+    if (!Number.isFinite(amount) || amount < 100 || amount > 100000) {
+      return res.status(400).json({ error: 'Сумма пополнения: от 100 до 100 000 ₽' });
+    }
+    if (!isYookassaConfigured()) {
+      return res.status(503).json({ error: 'Платёжная система не настроена' });
+    }
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://loopera.ru').replace(/\/$/, '');
+    const returnUrl = `${frontendUrl}/profile?topup=success`;
+
+    await client.query('BEGIN');
+
+    const payment = await createPayment({
+      amountRub: amount,
+      description: `Loopera: пополнение баланса ${amount} ₽`,
+      returnUrl,
+      metadata: {
+        type: 'balance_topup',
+        buyer_id: String(userId),
+        amount: String(amount),
+      },
+    });
+
+    if (!payment.confirmation?.confirmation_url) {
+      await client.query('ROLLBACK');
+      return res.status(500).json({ error: 'Не удалось создать платёж' });
+    }
+
+    await client.query(
+      `INSERT INTO top_ups (user_id, invoice_id, amount, currency, status)
+       VALUES ($1, $2, $3, 'RUB', 'pending')
+       ON CONFLICT (invoice_id) DO NOTHING`,
+      [userId, payment.id, amount],
+    );
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      confirmation_url: payment.confirmation.confirmation_url,
+      payment_id: payment.id,
+      amount,
+    });
   } catch (error) {
     await client.query('ROLLBACK');
-    res.status(500).json({ error: 'Failed to buy pack' });
+    console.error('createBalanceTopUp error:', error);
+    res.status(500).json({ error: 'Не удалось создать пополнение' });
   } finally {
     client.release();
   }
@@ -412,57 +601,82 @@ export const getUserBalance = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Создать заявку на вывод средств
+// Создать заявку на вывод средств (резервирует сумму на балансе)
 export const createWithdrawal = async (req: AuthRequest, res: Response) => {
+  const client = await pool.connect();
+
   try {
     const { amount, phone, bank, withdrawal_method = 'sbp' } = req.body;
     const userId = req.user!.userId;
+    const withdrawAmount = Number(amount);
 
-    // Проверяем минимальную сумму вывода
-    if (amount < 1000) {
-      return res.status(400).json({ error: 'Minimum withdrawal amount is 1000 coins' });
+    if (!phone || !bank) {
+      return res.status(400).json({ error: 'Укажите телефон и банк для вывода' });
     }
 
-    // Рассчитываем комиссию: 15% платформа + метод%
-    let platformCommission = Math.round(amount * 0.15); // 15% платформа
+    if (!withdrawAmount || withdrawAmount < 1000) {
+      return res.status(400).json({ error: 'Минимальная сумма вывода: 1000 ₽' });
+    }
+
+    let platformCommission = Math.round(withdrawAmount * 0.15);
     let methodCommission = 0;
     switch (withdrawal_method) {
       case 'paypal':
-        methodCommission = Math.round(amount * 0.05); // 5% PayPal
+        methodCommission = Math.round(withdrawAmount * 0.05);
         break;
       case 'card':
-        methodCommission = Math.round(amount * 0.02); // 2% Карта
+        methodCommission = Math.round(withdrawAmount * 0.02);
         break;
       case 'sbp':
       default:
-        methodCommission = 0; // 0% СБП
+        methodCommission = 0;
         break;
     }
     const commission = platformCommission + methodCommission;
 
-    // Получаем баланс
-    const balanceQuery = `
-      SELECT available_balance
-      FROM user_balance
-      WHERE user_id = $1
-    `;
-    const balanceResult = await pool.query(balanceQuery, [userId]);
+    await client.query('BEGIN');
 
-    if (balanceResult.rows.length === 0 || balanceResult.rows[0].available_balance < amount) {
-      return res.status(400).json({ error: 'Insufficient available balance' });
+    const reserveResult = await client.query(
+      `UPDATE user_balance
+       SET available_balance = available_balance - $1,
+           pending_balance = pending_balance + $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $2 AND available_balance >= $1
+       RETURNING available_balance, pending_balance`,
+      [withdrawAmount, userId]
+    );
+
+    if (reserveResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Недостаточно средств на балансе' });
     }
 
-    // Создаем заявку с методом вывода и комиссией
-    const withdrawalQuery = `
-      INSERT INTO withdrawals (user_id, amount, phone, bank, withdrawal_method, commission)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `;
-    const withdrawalResult = await pool.query(withdrawalQuery, [userId, amount, phone, bank, withdrawal_method, commission]);
+    const withdrawalResult = await client.query(
+      `INSERT INTO withdrawals (user_id, amount, phone, bank, withdrawal_method, commission)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [userId, withdrawAmount, phone, bank, withdrawal_method, commission]
+    );
+
+    await client.query('COMMIT');
+
+    const usernameRow = await pool.query(`SELECT username FROM users WHERE id = $1`, [userId]);
+    void notifyWithdrawalRequest({
+      id: withdrawalResult.rows[0].id,
+      userId,
+      username: usernameRow.rows[0]?.username,
+      amount: withdrawAmount,
+      phone,
+      bank,
+      method: withdrawal_method,
+    });
 
     res.status(201).json(withdrawalResult.rows[0]);
   } catch (error) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: 'Failed to create withdrawal' });
+  } finally {
+    client.release();
   }
 };
 
@@ -523,39 +737,27 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
     const query = `
       SELECT
         'purchase' as type,
-        up.purchased_at as created_at,
-        sp.price as amount,
-        'coins' as currency,
+        o.paid_at as created_at,
+        o.amount::integer as amount,
+        'RUB' as currency,
         sp.title as description,
-        up.id::text as invoice_id
-      FROM user_packs up
-      JOIN sound_packs sp ON up.pack_id = sp.id
-      WHERE up.user_id = $1
+        o.invoice_id
+      FROM orders o
+      JOIN sound_packs sp ON sp.id = o.pack_id
+      WHERE o.buyer_id = $1 AND o.status = 'paid'
 
       UNION ALL
 
       SELECT
         'sale' as type,
-        up.purchased_at as created_at,
-        sp.price as amount,
-        'coins' as currency,
+        o.paid_at as created_at,
+        o.seller_earnings::integer as amount,
+        'RUB' as currency,
         sp.title as description,
-        up.id::text as invoice_id
-      FROM user_packs up
-      JOIN sound_packs sp ON up.pack_id = sp.id
-      WHERE sp.user_id = $1 AND up.user_id != $1
-
-      UNION ALL
-
-      SELECT
-        'topup' as type,
-        t.created_at,
-        t.amount,
-        t.currency,
-        'Пополнение баланса' as description,
-        t.invoice_id
-      FROM top_ups t
-      WHERE t.user_id = $1 AND t.status = 'completed'
+        o.invoice_id
+      FROM orders o
+      JOIN sound_packs sp ON sp.id = o.pack_id
+      WHERE o.seller_id = $1 AND o.status = 'paid'
 
       UNION ALL
 
@@ -563,11 +765,11 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
         'withdrawal' as type,
         w.created_at,
         w.amount,
-        'coins' as currency,
+        'RUB' as currency,
         'Вывод средств' as description,
         w.id::text as invoice_id
       FROM withdrawals w
-      WHERE w.user_id = $1
+      WHERE w.user_id = $1 AND w.status IN ('pending', 'completed')
 
       ORDER BY created_at DESC
       LIMIT 50
@@ -577,6 +779,7 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
 
     res.json({ transactions: result.rows });
   } catch (error) {
+    console.error('getTransactionHistory error:', error);
     res.status(500).json({ error: 'Failed to get transaction history' });
   }
 };
@@ -636,10 +839,13 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const userId = req.user!.userId;
 
-    // Проверяем, купил ли пользователь этот пак
     const purchaseCheckQuery = `
       SELECT 1 FROM orders
       WHERE buyer_id = $1 AND pack_id = $2 AND status = 'paid'
+      UNION
+      SELECT 1 FROM user_packs
+      WHERE user_id = $1 AND pack_id = $2
+      LIMIT 1
     `;
     const purchaseCheckResult = await pool.query(purchaseCheckQuery, [userId, id]);
 
@@ -647,7 +853,6 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'You must purchase the pack to download it' });
     }
 
-    // Получаем информацию о паке
     const packQuery = `
       SELECT sp.archive_url, sp.title, sp.voice_tag_file, sp.text_file
       FROM sound_packs sp
@@ -665,48 +870,75 @@ export const downloadPack = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Archive file not found' });
     }
 
-    // Если есть дополнительные файлы, создаем новый архив
-    if (pack.voice_tag_file || pack.text_file) {
-      // Temporarily disabled due to missing archiver dependency
-      // const archive = archiver('zip', { zlib: { level: 9 } });
-      // res.attachment(`${pack.title}.zip`);
-      // archive.pipe(res);
-      // const archivePath = path.join(process.cwd(), pack.archive_url);
-      // if (fs.existsSync(archivePath)) {
-      //   archive.file(archivePath, { name: 'pack.zip' });
-      // }
-      // if (pack.voice_tag_file) {
-      //   const voiceTagPath = path.join(process.cwd(), pack.voice_tag_file);
-      //   if (fs.existsSync(voiceTagPath)) {
-      //     archive.file(voiceTagPath, { name: 'voicetag.mp3' });
-      //   }
-      // }
-      // if (pack.text_file) {
-      //   const textFilePath = path.join(process.cwd(), pack.text_file);
-      //   if (fs.existsSync(textFilePath)) {
-      //     archive.file(textFilePath, { name: 'document.txt' });
-      //   }
-      // }
-      // await archive.finalize();
+    const downloadName = sanitizePackFilename(pack.title);
 
-      // Temporarily just send the main archive
-      const archivePath = path.join(process.cwd(), pack.archive_url);
-      if (fs.existsSync(archivePath)) {
-        res.download(archivePath, `${pack.title}.zip`);
-        return;
+    // Prefer short-lived signed URL when object storage is enabled and no extras to bundle
+    const voicePath = pack.voice_tag_file ? localPathFromUploadUrl(pack.voice_tag_file) : null;
+    const textPath = pack.text_file ? localPathFromUploadUrl(pack.text_file) : null;
+    const hasVoiceTag = Boolean(voicePath && fs.existsSync(voicePath));
+    const hasTextFile = Boolean(textPath && fs.existsSync(textPath));
+
+    if (!hasVoiceTag && !hasTextFile && isObjectStorageEnabled()) {
+      const signed = await getSignedDownloadUrl(pack.archive_url, 600, downloadName);
+      if (signed) {
+        return res.json({ download_url: signed, expires_in: 600 });
       }
-    } else {
-      // Если нет дополнительных файлов, скачиваем только основной архив
-      const filePath = path.join(process.cwd(), pack.archive_url);
-
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'File not found on server' });
-      }
-
-      res.download(filePath, `${pack.title}.zip`);
     }
+
+    const archivePath = localFileExists(pack.archive_url)
+      ? localPathFromUploadUrl(pack.archive_url)
+      : resolveUploadPath(pack.archive_url);
+
+    if (!fs.existsSync(archivePath)) {
+      // Last resort: redirect to signed S3 even if we wanted to re-zip
+      if (isObjectStorageEnabled()) {
+        const signed = await getSignedDownloadUrl(pack.archive_url, 600, downloadName);
+        if (signed) {
+          return res.json({ download_url: signed, expires_in: 600 });
+        }
+      }
+      return res.status(404).json({ error: 'File not found on server' });
+    }
+
+    if (!hasVoiceTag && !hasTextFile) {
+      setZipDownloadHeaders(res, downloadName);
+      fs.createReadStream(archivePath).pipe(res);
+      return;
+    }
+
+    setZipDownloadHeaders(res, downloadName);
+    const zip = archiver('zip', { zlib: { level: 9 } });
+
+    zip.on('error', (err: Error) => {
+      console.error('downloadPack archiver error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to create download archive' });
+      } else {
+        res.end();
+      }
+    });
+
+    zip.pipe(res);
+
+    const loopsName = downloadName.replace(/\.zip$/i, '') + ' - Loops.zip';
+    zip.file(archivePath, { name: loopsName });
+
+    if (hasVoiceTag && voicePath) {
+      const voiceExt = path.extname(voicePath) || '.mp3';
+      zip.file(voicePath, { name: `Voice Tag${voiceExt}` });
+    }
+
+    if (hasTextFile && textPath) {
+      const textExt = path.extname(textPath) || '.txt';
+      zip.file(textPath, { name: `Info${textExt}` });
+    }
+
+    await zip.finalize();
   } catch (error) {
-    res.status(500).json({ error: 'Failed to download pack' });
+    console.error('downloadPack error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to download pack' });
+    }
   }
 };
 
@@ -773,8 +1005,8 @@ export const manualCreditBalance = async (req: AuthRequest, res: Response) => {
     const { username, amount } = req.body;
     const adminId = req.user!.userId;
 
-    // Проверяем что это админ
-    if (req.user!.role !== 'admin') {
+    const staff = await resolveStaffRole(Number(adminId));
+    if (staff !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -847,29 +1079,12 @@ export const manualCreditBalance = async (req: AuthRequest, res: Response) => {
 };
 
 // Получить баланс по Telegram ID
-export const getBalanceByTelegramId = async (req: Request, res: Response) => {
-  try {
-    const { telegram_id } = req.params;
-
-    const query = `
-      SELECT ub.available_balance, ub.pending_balance
-      FROM user_balance ub
-      JOIN users u ON ub.user_id = u.id
-      WHERE u.telegram_id = $1
-    `;
-    const result = await pool.query(query, [telegram_id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({
-      available_balance: result.rows[0].available_balance,
-      pending_balance: result.rows[0].pending_balance
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch balance' });
-  }
+/** Disabled: leaked balances by telegram id. Use authenticated /balance/my. */
+export const getBalanceByTelegramId = async (_req: Request, res: Response) => {
+  return res.status(410).json({
+    error: 'Endpoint removed. Use GET /api/shop/balance/my with auth.',
+    code: 'GONE',
+  });
 };
 
 // Получить баланс пользователя по username (для админа)
@@ -877,8 +1092,9 @@ export const getUserBalanceByUsername = async (req: AuthRequest, res: Response) 
   try {
     const { username } = req.params;
 
-    // Проверяем что это админ
-    if (req.user!.role !== 'admin') {
+    const userId = req.user?.userId ?? req.user?.id;
+    const staff = userId ? await resolveStaffRole(Number(userId)) : null;
+    if (staff !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -916,8 +1132,9 @@ export const searchUsers = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Query parameter is required' });
     }
 
-    // Проверяем что это админ
-    if (req.user!.role !== 'admin') {
+    const userId = req.user?.userId ?? req.user?.id;
+    const staff = userId ? await resolveStaffRole(Number(userId)) : null;
+    if (staff !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -942,8 +1159,8 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
     const { username, amount, currency } = req.body;
     const adminId = req.user!.userId;
 
-    // Проверяем что это админ
-    if (req.user!.role !== 'admin') {
+    const staff = await resolveStaffRole(Number(adminId));
+    if (staff !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -955,7 +1172,7 @@ export const manualDebitBalance = async (req: AuthRequest, res: Response) => {
 
     // Проверяем минимальную сумму вывода
     if (withdrawalAmount < 1000) {
-      return res.status(400).json({ error: 'Минимальная сумма для вывода: 1000 коинов' });
+      return res.status(400).json({ error: 'Минимальная сумма для вывода: 1000 ₽' });
     }
 
     const commission = Math.round(withdrawalAmount * 0.15); // 15% commission
@@ -1112,6 +1329,12 @@ export const getAllPacksAdmin = async (req: AuthRequest, res: Response) => {
   const client = await pool.connect();
 
   try {
+    const userId = req.user?.userId ?? req.user?.id;
+    const staff = userId ? await resolveStaffRole(Number(userId)) : null;
+    if (!staff) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
     const { page = 1, limit = 50, status } = req.query;
     const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
 

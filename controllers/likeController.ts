@@ -140,6 +140,7 @@ export const getLikedLoops = async (req: AuthRequest, res: Response) => {
         l.key,
         l.genre,
         l.tags,
+        l.cover_url,
         l.user_id,
         l.created_at,
         u.username as author,

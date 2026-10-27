@@ -1,38 +1,22 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Local Postgres dump for Loopera (Docker).
+# Env (optional): BACKUP_DIR, DB_NAME, DB_USER, RETENTION_DAYS, POSTGRES_CONTAINER
+set -euo pipefail
 
-# Database Backup Script for Loopera
-# Creates daily backups with retention policy
+BACKUP_DIR="${BACKUP_DIR:-./backups}"
+DB_NAME="${DB_NAME:-loopera}"
+DB_USER="${DB_USER:-loopera}"
+RETENTION_DAYS="${RETENTION_DAYS:-14}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-loopera-postgres}"
 
-BACKUP_DIR="/root/loopera-backend/backups"
-DB_NAME="loopera"
-DB_USER="matveevdima"
-RETENTION_DAYS=7
+mkdir -p "$BACKUP_DIR"
+STAMP="$(date +%Y%m%d_%H%M%S)"
+BACKUP_FILE="$BACKUP_DIR/loopera_backup_${STAMP}.sql"
 
-# Create backup directory if not exists
-mkdir -p $BACKUP_DIR
+echo "[backup] dumping ${DB_NAME} from ${POSTGRES_CONTAINER}…"
+docker exec "$POSTGRES_CONTAINER" pg_dump -U "$DB_USER" -d "$DB_NAME" --no-owner --no-acl > "$BACKUP_FILE"
+gzip -f "$BACKUP_FILE"
+echo "[backup] wrote ${BACKUP_FILE}.gz"
 
-# Create backup filename with timestamp
-BACKUP_FILE="$BACKUP_DIR/loopera_backup_$(date +%Y%m%d_%H%M%S).sql"
-
-echo "Starting database backup..."
-
-# Create backup
-docker exec loopera-postgres pg_dump -U $DB_USER -d $DB_NAME > $BACKUP_FILE
-
-if [ $? -eq 0 ]; then
-    echo "Backup created successfully: $BACKUP_FILE"
-    
-    # Compress backup
-    gzip $BACKUP_FILE
-    echo "Backup compressed: ${BACKUP_FILE}.gz"
-    
-    # Remove old backups (keep last 7 days)
-    find $BACKUP_DIR -name "loopera_backup_*.sql.gz" -mtime +$RETENTION_DAYS -delete
-    echo "Old backups removed (older than $RETENTION_DAYS days)"
-    
-else
-    echo "Backup failed!"
-    exit 1
-fi
-
-echo "Backup process completed."
+find "$BACKUP_DIR" -name 'loopera_backup_*.sql.gz' -mtime +"$RETENTION_DAYS" -delete
+echo "[backup] pruned backups older than ${RETENTION_DAYS}d"
