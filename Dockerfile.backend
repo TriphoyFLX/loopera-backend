@@ -1,7 +1,9 @@
-# Base image
-FROM node:20-alpine AS base
+# Production backend — run TypeScript via tsx (avoids ESM/CJS emit breakage)
+FROM node:20-alpine
 
-RUN apk add --no-cache python3 make g++ curl
+RUN apk add --no-cache python3 make g++ curl \
+    && addgroup -g 1001 -S nodejs \
+    && adduser -S nodejs -u 1001
 
 WORKDIR /app
 
@@ -9,25 +11,9 @@ COPY package*.json ./
 RUN npm ci && npm cache clean --force
 
 COPY . .
-RUN npm run build
-
-# Production stage — compiled JS only
-FROM node:20-alpine AS production
-
-RUN apk add --no-cache curl \
-    && addgroup -g 1001 -S nodejs \
-    && adduser -S nodejs -u 1001
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
-COPY --from=base --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=base --chown=nodejs:nodejs /app/config ./config
 
 RUN mkdir -p uploads/loops uploads/shop uploads/avatars uploads/looptok \
-    && chown -R nodejs:nodejs uploads
+    && chown -R nodejs:nodejs /app
 
 USER nodejs
 
@@ -36,4 +22,4 @@ EXPOSE 5001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:5001/api/health || exit 1
 
-CMD ["node", "dist/index.js"]
+CMD ["npx", "tsx", "index.ts"]
