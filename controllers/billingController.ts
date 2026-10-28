@@ -187,7 +187,17 @@ export const updateProfileTheme = async (req: AuthRequest, res: Response) => {
 
     const sub = await getActiveSubscription(userId);
     const isAdmin = userId === 824;
-    if (!isAdmin && !sub.plan.limits.customProfile && !sub.plan.limits.accentOnly) {
+    const body = req.body || {};
+    const bodyKeys = Object.keys(body);
+    const isPinOnly =
+      bodyKeys.length > 0 && bodyKeys.every((key) => key === 'featured_loop_id');
+
+    if (
+      !isAdmin &&
+      !sub.plan.limits.customProfile &&
+      !sub.plan.limits.accentOnly &&
+      !isPinOnly
+    ) {
       return res.status(403).json({
         message: 'Profile customization requires Pro or Elite',
         code: 'PLAN_LIMIT',
@@ -195,12 +205,31 @@ export const updateProfileTheme = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const body = req.body || {};
     const current = await pool.query(`SELECT profile_theme FROM users WHERE id = $1`, [userId]);
     const prev = (current.rows[0]?.profile_theme || {}) as Record<string, unknown>;
 
     const next: Record<string, unknown> = { ...prev };
     const fullCustom = isAdmin || sub.plan.limits.customProfile;
+
+    // Pin/unpin loop — available to every author
+    if (Object.prototype.hasOwnProperty.call(body, 'featured_loop_id')) {
+      if (body.featured_loop_id === null || body.featured_loop_id === '') {
+        next.featured_loop_id = null;
+      } else {
+        const loopId = parseInt(String(body.featured_loop_id), 10);
+        if (!Number.isFinite(loopId)) {
+          return res.status(400).json({ message: 'Invalid pinned loop' });
+        }
+        const loopCheck = await pool.query(
+          `SELECT id FROM loops WHERE id = $1 AND user_id = $2`,
+          [loopId, userId],
+        );
+        if (loopCheck.rows.length === 0) {
+          return res.status(400).json({ message: 'Pinned loop not found' });
+        }
+        next.featured_loop_id = loopId;
+      }
+    }
 
     if (typeof body.accent_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.accent_color)) {
       next.accent_color = body.accent_color;
@@ -218,21 +247,6 @@ export const updateProfileTheme = async (req: AuthRequest, res: Response) => {
       }
       if (typeof body.show_stats === 'boolean') {
         next.show_stats = body.show_stats;
-      }
-      if (body.featured_loop_id === null) {
-        next.featured_loop_id = null;
-      } else if (body.featured_loop_id != null) {
-        const loopId = parseInt(String(body.featured_loop_id), 10);
-        if (Number.isFinite(loopId)) {
-          const loopCheck = await pool.query(
-            `SELECT id FROM loops WHERE id = $1 AND user_id = $2`,
-            [loopId, userId],
-          );
-          if (loopCheck.rows.length === 0) {
-            return res.status(400).json({ message: 'Featured loop not found' });
-          }
-          next.featured_loop_id = loopId;
-        }
       }
       if (typeof body.bio === 'string') {
         next.bio = body.bio.trim().slice(0, 280);
