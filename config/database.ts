@@ -909,6 +909,33 @@ export const initDatabase = async () => {
       ON home_posts(is_active, sort_order DESC, created_at DESC)
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_ads (
+        id SERIAL PRIMARY KEY,
+        loop_id INTEGER NOT NULL REFERENCES loops(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        budget_total INTEGER NOT NULL CHECK (budget_total > 0),
+        budget_spent INTEGER NOT NULL DEFAULT 0 CHECK (budget_spent >= 0),
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        impressions INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_loop_ads_active
+      ON loop_ads(status) WHERE status = 'active'
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loop_ad_impressions (
+        id SERIAL PRIMARY KEY,
+        ad_id INTEGER NOT NULL REFERENCES loop_ads(id) ON DELETE CASCADE,
+        viewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        cost INTEGER NOT NULL DEFAULT 2,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);

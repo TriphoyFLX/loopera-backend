@@ -16,7 +16,7 @@ router.get('/for-you', authenticate, getForYouLoops);
 router.get('/hashtags/popular', getPopularHashtags);
 router.get('/random', getRandomLoops);
 router.get('/user/:userId', getLoopsByUser);
-router.get('/', getAllLoops);
+router.get('/', optionalAuthenticate, getAllLoops);
 
 // Parameterized
 router.get('/:id/comments', optionalAuthenticate, getLoopComments);

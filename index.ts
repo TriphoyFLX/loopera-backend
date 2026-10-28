@@ -45,8 +45,10 @@ import webhookRoutes from './routes/webhooks.js';
 import notificationRoutes from './routes/notifications.js';
 import homeRoutes from './routes/home.js';
 import followRoutes from './routes/follows.js';
+import loopAdsRoutes from './routes/loopAds.js';
 import { generalLimiter, authLimiter, getRedisStatus } from './middleware/rateLimit.js';
 import { isObjectStorageEnabled } from './services/objectStorage.js';
+import { ensureLoopAdsTables } from './services/loopAdsService.js';
 
 installProcessErrorHandlers();
 
@@ -123,6 +125,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/home', homeRoutes);
 app.use('/api/follows', followRoutes);
+app.use('/api/loop-ads', loopAdsRoutes);
 
 app.use('/uploads/loops', express.static('uploads/loops'));
 app.use('/uploads/beats', express.static('uploads/beats'));
@@ -218,6 +221,7 @@ const startServer = async () => {
   try {
     assertProductionEnv();
     await initDatabase();
+    await ensureLoopAdsTables();
 
     try {
       const client = await pool.connect();

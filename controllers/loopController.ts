@@ -1223,7 +1223,6 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
 
     // Оптимизированный подсчет totalCount с кэшированием
     let totalCount;
-    const cacheKey = 'loops_total_count';
     
     if (page === 1) {
       // Только для первой страницы считаем общее количество
@@ -1233,9 +1232,23 @@ export const getAllLoops = async (req: express.Request, res: Response) => {
       totalCount = null;
     }
 
+    let loops = result.rows;
+    const allowAds = !search && !tag && !genre && !mood && !key && !minBpm && !maxBpm;
+    if (allowAds && loops.length > 0) {
+      try {
+        const { injectSponsoredIntoLoops } = await import('../services/loopAdsService.js');
+        const viewerId =
+          (req as { user?: { userId?: number; id?: number } }).user?.userId ||
+          (req as { user?: { userId?: number; id?: number } }).user?.id ||
+          null;
+        loops = await injectSponsoredIntoLoops(loops, { viewerId, chance: 0.6 });
+      } catch (adErr) {
+        console.warn('loop ads inject skipped:', adErr);
+      }
+    }
 
     res.json({
-      loops: result.rows,
+      loops,
       pagination: {
         page,
         limit,
