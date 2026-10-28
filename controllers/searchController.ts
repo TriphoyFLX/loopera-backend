@@ -19,6 +19,7 @@ export const searchArtists = async (req: Request, res: Response) => {
       SELECT
         u.id,
         u.username,
+        u.avatar_url,
         u.created_at,
         COUNT(l.id)::int as loops_count,
         STRING_AGG(DISTINCT l.genre, ', ') as genres
@@ -34,7 +35,7 @@ export const searchArtists = async (req: Request, res: Response) => {
              OR COALESCE(l2.tags::text, '') ILIKE $1
            )
          )
-      GROUP BY u.id, u.username, u.created_at
+      GROUP BY u.id, u.username, u.avatar_url, u.created_at
       HAVING COUNT(l.id) > 0 OR u.username ILIKE $1
       ORDER BY loops_count DESC, u.username ASC
       LIMIT 30
@@ -45,6 +46,7 @@ export const searchArtists = async (req: Request, res: Response) => {
     const artists = result.rows.map((row) => ({
       id: row.id,
       username: row.username,
+      avatar_url: row.avatar_url || null,
       hashtag: String(row.username || '')
         .toLowerCase()
         .replace(/[^a-z0-9а-яё]/gi, ''),
@@ -78,6 +80,7 @@ export const searchLoops = async (req: Request, res: Response) => {
         l.key,
         l.genre,
         l.tags,
+        l.cover_url,
         l.created_at,
         l.user_id,
         u.username as author,
@@ -107,6 +110,7 @@ export const searchLoops = async (req: Request, res: Response) => {
       key: row.key,
       genre: row.genre,
       tags: row.tags,
+      cover_url: row.cover_url || null,
       created_at: row.created_at,
       user_id: row.user_id,
       author: row.author,
