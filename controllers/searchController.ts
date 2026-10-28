@@ -22,7 +22,16 @@ export const searchArtists = async (req: Request, res: Response) => {
         u.avatar_url,
         u.created_at,
         COUNT(l.id)::int as loops_count,
-        STRING_AGG(DISTINCT l.genre, ', ') as genres
+        STRING_AGG(DISTINCT l.genre, ', ') as genres,
+        (
+          SELECT ups.plan_slug
+          FROM user_paid_subscriptions ups
+          WHERE ups.user_id = u.id
+            AND ups.status = 'active'
+            AND ups.period_end > NOW()
+          ORDER BY ups.period_end DESC
+          LIMIT 1
+        ) as plan_slug
       FROM users u
       LEFT JOIN loops l ON u.id = l.user_id
       WHERE u.username ILIKE $1
@@ -53,6 +62,7 @@ export const searchArtists = async (req: Request, res: Response) => {
       loops_count: parseInt(row.loops_count, 10) || 0,
       genres: row.genres || '',
       created_at: row.created_at,
+      plan_slug: row.plan_slug || 'free',
     }));
 
     res.json({ artists });

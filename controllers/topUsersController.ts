@@ -111,7 +111,16 @@ export const getTopUsers = async (req: AuthRequest, res: Response) => {
         u.avatar_url,
         u.created_at,
         COUNT(DISTINCT l.id) as loops_count,
-        COUNT(DISTINCT ll.id) as total_likes
+        COUNT(DISTINCT ll.id) as total_likes,
+        (
+          SELECT ups.plan_slug
+          FROM user_paid_subscriptions ups
+          WHERE ups.user_id = u.id
+            AND ups.status = 'active'
+            AND ups.period_end > NOW()
+          ORDER BY ups.period_end DESC
+          LIMIT 1
+        ) as plan_slug
       FROM users u
       LEFT JOIN loops l ON u.id = l.user_id
       LEFT JOIN loop_likes ll ON l.id = ll.loop_id
@@ -141,6 +150,7 @@ export const getTopUsers = async (req: AuthRequest, res: Response) => {
       created_at: row.created_at,
       loops_count: parseInt(row.loops_count),
       total_likes: parseInt(row.total_likes),
+      plan_slug: row.plan_slug || 'free',
       avg_rating: 0
     }));
 
